@@ -42,10 +42,10 @@ from Sire import Mol as _SireMol
 from Sire import System as _SireSystem
 from Sire import Units as _SireUnits
 
-from BioSimSpace import _isVerbose
-from BioSimSpace._Exceptions import IncompatibleError as _IncompatibleError
-from BioSimSpace.Types import Coordinate as _Coordinate
-from BioSimSpace.Types import Length as _Length
+from .. import _isVerbose
+from .._Exceptions import IncompatibleError as _IncompatibleError
+from ..Types import Coordinate as _Coordinate
+from ..Types import Length as _Length
 
 from ._sire_wrapper import SireWrapper as _SireWrapper
 
@@ -1210,6 +1210,8 @@ class Molecule(_SireWrapper):
 
         # Validate input.
         if isinstance(vector, list):
+            if len(vector) != 3:
+                raise ValueError("'vector' must contain 3 items, i.e. x, y, z components!")
             vec = []
             for x in vector:
                 if type(x) is int:

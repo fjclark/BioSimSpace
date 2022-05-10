@@ -28,7 +28,7 @@ __email__ = "lester.hedges@gmail.com"
 
 __all__ = ["getFrame", "Trajectory"]
 
-from BioSimSpace._Utils import _try_import
+from .._Utils import _try_import
 
 _mdanalysis = _try_import("MDAnalysis")
 _mdtraj = _try_import("mdtraj")
@@ -39,14 +39,14 @@ import warnings as _warnings
 from Sire import IO as _SireIO
 from Sire import Mol as _SireMol
 
-from BioSimSpace import _isVerbose
-from BioSimSpace._Exceptions import IncompatibleError as _IncompatibleError
-from BioSimSpace.Process._process import Process as _Process
-from BioSimSpace._SireWrappers import System as _System
-from BioSimSpace.Types import Time as _Time
+from .. import _isVerbose
+from .._Exceptions import IncompatibleError as _IncompatibleError
+from ..Process._process import Process as _Process
+from .._SireWrappers import System as _System
+from ..Types import Time as _Time
 
-from BioSimSpace import IO as _IO
-from BioSimSpace import Units as _Units
+from .. import IO as _IO
+from .. import Units as _Units
 
 def getFrame(trajectory, topology, index):
     """Extract a single frame from a trajectory file.
@@ -243,6 +243,9 @@ class Trajectory():
             # Check the file extension.
             _, extension = _os.path.splitext(top_file)
 
+            # Whether we've created a temporary duplicate topology file.
+            is_temp_file = False
+
             # If this is a PRM7 file, copy to PARM7.
             if extension == ".prm7":
                 # Set the path to the temporary topology file.
@@ -251,12 +254,19 @@ class Trajectory():
                 # Copy the topology to a file with the correct extension.
                 _shutil.copyfile(top_file, new_top_file)
                 top_file = new_top_file
+                is_temp_file = True
 
             try:
                 universe = _mdanalysis.Universe(top_file, traj_file)
+
+                if is_temp_file:
+                    _os.remove(top_file)
             except:
                 _warnings.warn("MDAnalysis failed to read: traj=%s, top=%s" % (traj_file, top_file))
                 universe = None
+
+                if is_temp_file:
+                    _os.remove(top_file)
 
             return universe
 
