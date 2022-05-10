@@ -206,6 +206,7 @@ class Gromacs(_process.Process):
             self.setConfig(self._protocol.getConfig())
         else:
             self._generate_config()
+        # TODO: Write the Free Energy Stuff
         self.writeConfig(self._config_file)
 
         # Generate the dictionary of command-line arguments.
@@ -370,7 +371,7 @@ class Gromacs(_process.Process):
 
             # Pressure control.
             if self._protocol.getPressure() is not None and has_box and self._has_water:
-                config.append("pcoupl = berendsen")         # Berendsen barostat.
+                config.append("pcoupl = C-rescale")         # C-rescale barostat.
                 config.append("tau-p = 1.0")                # 1ps time constant for pressure coupling.
                 config.append("ref-p = %.5f"                # Pressure in bar.
                     % self._protocol.getPressure().bar().value())
@@ -459,7 +460,7 @@ class Gromacs(_process.Process):
 
             # Pressure control.
             if self._protocol.getPressure() is not None and has_box and self._has_water:
-                config.append("pcoupl = berendsen")         # Berendsen barostat.
+                config.append("pcoupl = C-rescale")         # C-rescale barostat.
                 config.append("tau-p = 1.0")                # 1ps time constant for pressure coupling.
                 config.append("ref-p = %.5f"                # Pressure in bar.
                     % self._protocol.getPressure().bar().value())
@@ -542,7 +543,7 @@ class Gromacs(_process.Process):
 
             # Pressure control.
             if self._protocol.getPressure() is not None and has_box and self._has_water:
-                config.append("pcoupl = berendsen")         # Berendsen barostat.
+                config.append("pcoupl = C-rescale")         # C-rescale barostat.
                 config.append("tau-p = 1.0")                # 1ps time constant for pressure coupling.
                 config.append("ref-p = %.5f"                # Pressure in bar.
                     % self._protocol.getPressure().bar().value())
@@ -558,6 +559,7 @@ class Gromacs(_process.Process):
             # Free energy parameters.
             config.append("free-energy = yes")              # Free energy simulation.
             config.append("init-lambda-state = %d" % idx)   # Index of the lambda value.
+            # TODO: Need to enable couple-moltype
             config.append("fep-lambdas = %s" \
                 % " ".join([str(x) for x in lam_vals]))
             config.append("couple-lambda0 = vdw-q")         # All interactions on at lambda = 0
@@ -644,7 +646,7 @@ class Gromacs(_process.Process):
 
             # Pressure control.
             if self._protocol.getPressure() is not None and has_box and self._has_water:
-                config.append("pcoupl = berendsen")         # Berendsen barostat.
+                config.append("pcoupl = C-rescale")         # C-rescale barostat.
                 config.append("tau-p = 1.0")                # 1ps time constant for pressure coupling.
                 config.append("ref-p = %.5f"                # Pressure in bar.
                     % self._protocol.getPressure().bar().value())
@@ -749,7 +751,7 @@ class Gromacs(_process.Process):
 
             # Pressure control.
             if self._protocol.getPressure() is not None and has_box and self._has_water:
-                config.append("pcoupl = berendsen")         # Berendsen barostat.
+                config.append("pcoupl = C-rescale")         # C-rescale barostat.
                 config.append("tau-p = 1.0")                # 1ps time constant for pressure coupling.
                 config.append("ref-p = %.5f"                # Pressure in bar.
                     % self._protocol.getPressure().bar().value())
