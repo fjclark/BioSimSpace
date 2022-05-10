@@ -56,11 +56,11 @@ class FreeEnergy(_Protocol):
            Parameters
            ----------
 
-           lam : float
+           lam : float or pandas.DataFrame
                The perturbation parameter: [0.0, 1.0]
 
-           lam_vals : [float]
-               The list of lambda parameters.
+           lam_vals : [float] or pandas.DataFrame
+               The list of lambda parameters or a pandas.DataFrame.
 
            min_lam : float
                The minimum lambda value.
