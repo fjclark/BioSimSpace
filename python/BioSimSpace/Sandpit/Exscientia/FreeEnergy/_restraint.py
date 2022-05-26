@@ -114,16 +114,16 @@ class Restraint():
                 # Find the decoupled molecule, assume that only one can be
                 # decoupled.
                 (decoupled_mol,) = system.getDecoupledMolecules()
-                for key in ['l1', 'l2', 'l3']:
-                    atom = self._restraint_dict['anchor_points'][key]
-                    if not atom in decoupled_mol:
-                        raise ValueError(
-                            f'The ligand atom {key} is not from decoupled moleucle.')
-                for key in ['r1', 'r2', 'r3']:
-                    atom = self._restraint_dict['anchor_points'][key]
-                    if not atom in system:
-                        raise ValueError(
-                            f'The protein atom {key} is not in the system.')
+                # for key in ['l1', 'l2', 'l3']:
+                #     atom = self._restraint_dict['anchor_points'][key]
+                #     if not atom in decoupled_mol:
+                #         raise ValueError(
+                #             f'The ligand atom {key} is not from decoupled moleucle.')
+                # for key in ['r1', 'r2', 'r3']:
+                #     atom = self._restraint_dict['anchor_points'][key]
+                #     if not atom in system:
+                #         raise ValueError(
+                #             f'The protein atom {key} is not in the system.')
 
             # Store a copy of solvated system.
             self._system = system.copy()
