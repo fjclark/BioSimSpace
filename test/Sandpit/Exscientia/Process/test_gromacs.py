@@ -1,4 +1,5 @@
 import BioSimSpace.Sandpit.Exscientia as BSS
+from BioSimSpace.Sandpit.Exscientia.Align import decouple
 
 import pytest
 
@@ -57,6 +58,25 @@ def test_cool(system):
 @pytest.mark.skipif(has_gromacs is False, reason="Requires GROMACS to be installed.")
 def test_production(system):
     """Test a production protocol."""
+
+    # Create a short production protocol.
+    protocol = BSS.Protocol.Production(runtime=BSS.Types.Time(0.001, "nanoseconds"))
+
+    # Run the process and check that it finishes without error.
+    assert run_process(system, protocol)
+
+@pytest.mark.skipif(has_gromacs is False, reason="Requires GROMACS to be installed.")
+def test_restraint(system):
+    """Test a production protocol where one write the restraint."""
+    ligand = system.getMolecule(0)
+    decoupled_ligand = decouple(ligand)
+    l1 = decoupled_ligand.getAtoms()[0]
+    l2 = decoupled_ligand.getAtoms()[1]
+    l3 = decoupled_ligand.getAtoms()[2]
+    water = system.getMolecule(1)
+    r1 = decoupled_ligand.getAtoms()[0]
+    r2 = decoupled_ligand.getAtoms()[1]
+    r3 = decoupled_ligand.getAtoms()[2]
 
     # Create a short production protocol.
     protocol = BSS.Protocol.Production(runtime=BSS.Types.Time(0.001, "nanoseconds"))
