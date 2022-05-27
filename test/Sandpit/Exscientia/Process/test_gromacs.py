@@ -73,16 +73,16 @@ def test_production(system):
 def test_restraint(system, tmp_path):
     """Test if the restraint has been written in a way that could be processed
     correctly."""
-    ligand = system.getMolecule(0)
+    ligand = ligand = BSS.IO.readMolecules(BSS.IO.glob("test/input/ligands/ligand01*")).getMolecule(0)
     decoupled_ligand = decouple(ligand)
     l1 = decoupled_ligand.getAtoms()[0]
     l2 = decoupled_ligand.getAtoms()[1]
     l3 = decoupled_ligand.getAtoms()[2]
-    water = system.getMolecule(1)
-    r1 = water.getAtoms()[0]
-    r2 = water.getAtoms()[1]
-    r3 = water.getAtoms()[2]
-    system = (decoupled_ligand+water).toSystem()
+    ligand_2 = BSS.IO.readMolecules(BSS.IO.glob("test/input/ligands/ligand04*")).getMolecule(0)
+    r1 = ligand_2.getAtoms()[0]
+    r2 = ligand_2.getAtoms()[1]
+    r3 = ligand_2.getAtoms()[2]
+    system = (decoupled_ligand+ligand_2).toSystem()
 
     restraint_dict = {
         "anchor_points":{"r1":r1, "r2":r2, "r3":r3,
@@ -104,10 +104,9 @@ def test_restraint(system, tmp_path):
     # Create a short production protocol.
     protocol = BSS.Protocol.Production(runtime=BSS.Types.Time(0.0001, "nanoseconds"))
 
-    # Remove the ignore_warnings=True when https://github.com/michellab/BioSimSpace/pull/337 if fixed.
     # Run the process and check that it finishes without error.
     assert run_process(system, protocol, restraint=restraint,
-                       work_dir=str(tmp_path), ignore_warnings=True)
+                       work_dir=str(tmp_path))
     with open(tmp_path / 'test.top', 'r') as f:
         assert 'intermolecular_interactions' in f.read()
 
