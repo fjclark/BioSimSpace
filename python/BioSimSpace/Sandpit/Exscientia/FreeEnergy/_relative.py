@@ -73,7 +73,7 @@ from .. import Process as _Process
 from .. import Protocol as _Protocol
 from .. import Types as _Types
 from .. import Units as _Units
-from . import Restraint as _Restraint
+from ._restraint import Restraint as _Restraint
 
 from ..MD._md import _find_md_engines
 

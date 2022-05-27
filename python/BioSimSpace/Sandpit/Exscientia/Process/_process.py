@@ -52,7 +52,7 @@ from ..Protocol._protocol import Protocol as _Protocol
 from .._SireWrappers import System as _System
 from ..Types._type import Type as _Type
 from .. import Units as _Units
-from ..FreeEnergy import Restraint as _Restraint
+from ..FreeEnergy._restraint import Restraint as _Restraint
 
 if _is_notebook:
     from IPython.display import FileLink as _FileLink
