@@ -218,13 +218,13 @@ class Restraint():
                 output = ['[ intermolecular_interactions ]',]
 
                 output.append('[ bonds ]')
-                output.append('#;ai         aj      type bA         kA         bB         kB')
+                output.append('; ai         aj      type bA         kA         bB         kB')
                 # Bonds: r1-l1 (r0, kr)
                 output.append(
                     write_bond(('r1', 'l1'), 'r0', 'kr'))
 
                 output.append('[ angles ]')
-                output.append('#;ai         aj         ak      type thA        fcA        thB        fcB')
+                output.append('; ai         aj         ak      type thA        fcA        thB        fcB')
                 # Angles: r2-r1-l1 (thetaA0, kthetaA)
                 output.append(
                     write_angle(('r2', 'r1', 'l1'), 'thetaA0', 'kthetaA'))
@@ -233,7 +233,7 @@ class Restraint():
                     write_angle(('r1', 'l1', 'l2'), 'thetaB0', 'kthetaB'))
 
                 output.append('[ dihedrals ]')
-                output.append('#;ai         aj         ak         al      type phiA       fcA        phiB       fcB')
+                output.append('; ai         aj         ak         al      type phiA       fcA        phiB       fcB')
                 # Dihedrals: r3-r2-r1-l1 (phiA0, kphiA)
                 output.append(
                     write_dihedral(('r3', 'r2', 'r1', 'l1'), 'phiA0', 'kphiA'))
