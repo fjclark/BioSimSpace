@@ -282,6 +282,8 @@ class Relative():
 
         # Check that the restraint is valid.
         if not restraint is None:
+            if engine not in ['GROMACS', ]:
+                raise NotImplementedError(f'Restraint for MD Engine {engine} not implemented.')
             if not isinstance(restraint, _Restraint):
                 raise TypeError("'restraint' must be of type 'BioSimSpace.FreeEnergy.Restraint'.")
             else:

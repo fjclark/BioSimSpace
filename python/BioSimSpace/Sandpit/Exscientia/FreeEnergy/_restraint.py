@@ -37,11 +37,36 @@ class Restraint():
     Boresch restraint is a set of harmonic restraints containing one bond, two
     angle and three dihedrals, which comes from three atoms in the ligand
     (l1, l2, l3) and three atoms in the protein (r1, r2, r3). The restraints
-    are arranged in the format of atom1-atom2 (equilibrium value, force constant):
+    are represented in the format of:
+    atom1-atom2-... (equilibrium value, force constant)
 
+    The nomenclature:
     Bonds: r1-l1 (r0, kr)
     Angles: r2-r1-l1 (thetaA0, kthetaA), r1-l1-l2 (thetaB0, kthetaB)
     Dihedrals: r3-r2-r1-l1 (phiA0, kphiA), r2-r1-l1-l2 (phiB0, kphiB), r1-l1-l2-l3 (phiC0, kphiC)
+
+    The restraint_dict has the following compact format.
+
+    restraint_dict = {
+        "anchor_points":{"r1": BioSimSpace._SireWrappers.Atom,
+                         "r2": BioSimSpace._SireWrappers.Atom,
+                         "r3": BioSimSpace._SireWrappers.Atom,
+                         "l1": BioSimSpace._SireWrappers.Atom,
+                         "l2": BioSimSpace._SireWrappers.Atom,
+                         "l3": BioSimSpace._SireWrappers.Atom},
+        "equilibrium_values":{"r0": BioSimSpace.Types.Length,
+                              "thetaA0": BioSimSpace.Types.Angle,
+                              "thetaB0": BioSimSpace.Types.Angle,
+                              "phiA0": BioSimSpace.Types.Angle,
+                              "phiB0": BioSimSpace.Types.Angle,
+                              "phiC0": BioSimSpace.Types.Angle},
+        "force_constants":{"kr": BioSimSpace.Types.Energy / BioSimSpace.Types.Area,
+                           "kthetaA": BioSimSpace.Types.Energy / (BioSimSpace.Types.Area * BioSimSpace.Types.Area),
+                           "kthetaB": BioSimSpace.Types.Energy / (BioSimSpace.Types.Area * BioSimSpace.Types.Area),
+                           "kphiA": BioSimSpace.Types.Energy / (BioSimSpace.Types.Area * BioSimSpace.Types.Area),
+                           "kphiB": BioSimSpace.Types.Energy / (BioSimSpace.Types.Area * BioSimSpace.Types.Area),
+                           "kphiC": BioSimSpace.Types.Energy / (BioSimSpace.Types.Area * BioSimSpace.Types.Area)}}
+
     '''
     def __init__(self, system, restraint_dict, rest_type='Boresch'):
         """Constructor.
@@ -60,7 +85,7 @@ class Restraint():
         """
 
         if rest_type.lower() == 'boresch':
-            self.rest_type = 'boresch'
+            self._rest_type = 'boresch'
             # Test if the atoms are of BioSimSpace._SireWrappers.Atom
             for key in ['r3', 'r2', 'r1', 'l1', 'l2', 'l3']:
                 if not isinstance(restraint_dict['anchor_points'][key], Atom):
@@ -105,6 +130,10 @@ class Restraint():
         self._restraint_dict = restraint_dict
         self.update_system(system)
 
+    @property
+    def rest_type(self):
+        return self._rest_type
+
     def update_system(self, system):
         """Update the system object.
 
@@ -117,7 +146,7 @@ class Restraint():
         if not isinstance(system, _System):
             raise TypeError("'system' must be of type 'BioSimSpace._SireWrappers.System'")
         else:
-            if self.rest_type == 'boresch':
+            if self._rest_type == 'boresch':
                 # Check if the ligand atoms are decoupled.
                 # Find the decoupled molecule, assume that only one can be
                 # decoupled.
@@ -137,6 +166,111 @@ class Restraint():
             # Store a copy of solvated system.
             self._system = system.copy()
 
+    def _gromacs_boresch(self):
+        '''Format the Gromacs string for boresch restraint.'''
+        # Format the atoms into index list
+        def format_index(key_list):
+            formated_index = []
+            for key in key_list:
+                formated_index.append('{:<10}'.format(
+                    self._system.getIndex(
+                        self._restraint_dict['anchor_points'][key]) + 1))
+            return ' '.join(formated_index)
+
+        parameters_string = '{eq0:<10} {fc0:<10} {eq1:<10} {fc1:<10}'
+
+        # Format the parameters for the bonds
+        def format_bond(equilibrium_values, force_constants):
+            converted_equ_val = \
+                self._restraint_dict['equilibrium_values'][
+                    equilibrium_values] / nanometer
+            converted_fc = \
+                self._restraint_dict['force_constants'][force_constants] / (
+                            kj_per_mol / nanometer ** 2)
+            return parameters_string.format(
+                eq0='{:.3f}'.format(converted_equ_val),
+                fc0='{:.2f}'.format(0),
+                eq1='{:.3f}'.format(converted_equ_val),
+                fc1='{:.2f}'.format(converted_fc),
+            )
+
+        # Format the parameters for the angles and dihedrals
+        def format_angle(equilibrium_values, force_constants):
+            converted_equ_val = \
+                self._restraint_dict['equilibrium_values'][
+                    equilibrium_values] / degree
+            converted_fc = \
+                self._restraint_dict['force_constants'][force_constants] / (
+                            kj_per_mol / (radian * radian))
+            return parameters_string.format(
+                eq0='{:.3f}'.format(converted_equ_val),
+                fc0='{:.2f}'.format(0),
+                eq1='{:.3f}'.format(converted_equ_val),
+                fc1='{:.2f}'.format(converted_fc),
+            )
+
+        # basic format of the Gromacs string
+        master_string = '  {index} {func_type} {parameters}'
+
+        def write_bond(key_list, equilibrium_values, force_constants):
+            return master_string.format(
+                index=format_index(key_list),
+                func_type=6,
+                parameters=format_bond(equilibrium_values,
+                                       force_constants),
+            )
+
+        def write_angle(key_list, equilibrium_values, force_constants):
+            return master_string.format(
+                index=format_index(key_list),
+                func_type=1,
+                parameters=format_angle(equilibrium_values,
+                                        force_constants),
+            )
+
+        def write_dihedral(key_list, equilibrium_values, force_constants):
+            return master_string.format(
+                index=format_index(key_list),
+                func_type=2,
+                parameters=format_angle(equilibrium_values,
+                                        force_constants),
+            )
+
+        # Writing the string
+        output = ['[ intermolecular_interactions ]', ]
+
+        output.append('[ bonds ]')
+        output.append(
+            '; ai         aj      type bA         kA         bB         kB')
+        # Bonds: r1-l1 (r0, kr)
+        output.append(
+            write_bond(('r1', 'l1'), 'r0', 'kr'))
+
+        output.append('[ angles ]')
+        output.append(
+            '; ai         aj         ak      type thA        fcA        thB        fcB')
+        # Angles: r2-r1-l1 (thetaA0, kthetaA)
+        output.append(
+            write_angle(('r2', 'r1', 'l1'), 'thetaA0', 'kthetaA'))
+        # Angles: r1-l1-l2 (thetaB0, kthetaB)
+        output.append(
+            write_angle(('r1', 'l1', 'l2'), 'thetaB0', 'kthetaB'))
+
+        output.append('[ dihedrals ]')
+        output.append(
+            '; ai         aj         ak         al      type phiA       fcA        phiB       fcB')
+        # Dihedrals: r3-r2-r1-l1 (phiA0, kphiA)
+        output.append(
+            write_dihedral(('r3', 'r2', 'r1', 'l1'), 'phiA0', 'kphiA'))
+        # Dihedrals: r2-r1-l1-l2 (phiB0, kphiB)
+        output.append(
+            write_dihedral(('r2', 'r1', 'l1', 'l2'), 'phiB0', 'kphiB'))
+        # Dihedrals: r1-l1-l2-l3 (phiC0, kphiC)
+        output.append(
+            write_dihedral(('r1', 'l1', 'l2', 'l3'), 'phiC0', 'kphiC'))
+
+        return '\n'.join(output)
+
     def toString(self, engine='Gromacs'):
         """The method for convert the restraint to a format that could be used
         by MD Engines.
@@ -151,101 +285,8 @@ class Restraint():
                for you.
         """
         if engine.lower() == 'gromacs':
-            if self.rest_type == 'boresch':
-                # Format the atoms into index list
-                def format_index(key_list):
-                    formated_index = []
-                    for key in key_list:
-                        formated_index.append('{:<10}'.format(
-                            self._system.getIndex(
-                                self._restraint_dict['anchor_points'][key]) + 1))
-                    return ' '.join(formated_index)
-
-                parameters_string = '{eq0:<10} {fc0:<10} {eq1:<10} {fc1:<10}'
-                # Format the parameters for the bonds
-                def format_bond(equilibrium_values, force_constants):
-                    converted_equ_val = \
-                    self._restraint_dict['equilibrium_values'][equilibrium_values] / nanometer
-                    converted_fc = \
-                        self._restraint_dict['force_constants'][force_constants] / (kj_per_mol / nanometer ** 2)
-                    return parameters_string.format(
-                        eq0='{:.3f}'.format(converted_equ_val),
-                        fc0='{:.2f}'.format(0),
-                        eq1='{:.3f}'.format(converted_equ_val),
-                        fc1='{:.2f}'.format(converted_fc),
-                    )
-
-                # Format the parameters for the angles and dihedrals
-                def format_angle(equilibrium_values, force_constants):
-                    converted_equ_val = \
-                        self._restraint_dict['equilibrium_values'][equilibrium_values] / degree
-                    converted_fc = \
-                        self._restraint_dict['force_constants'][force_constants] / (kj_per_mol / (radian * radian))
-                    return parameters_string.format(
-                        eq0='{:.3f}'.format(converted_equ_val),
-                        fc0='{:.2f}'.format(0),
-                        eq1='{:.3f}'.format(converted_equ_val),
-                        fc1='{:.2f}'.format(converted_fc),
-                    )
-
-                # basic format of the Gromacs string
-                master_string = '  {index} {func_type} {parameters}'
-
-                def write_bond(key_list, equilibrium_values, force_constants):
-                    return master_string.format(
-                        index=format_index(key_list),
-                        func_type=6,
-                        parameters=format_bond(equilibrium_values,
-                                               force_constants),
-                    )
-
-                def write_angle(key_list, equilibrium_values, force_constants):
-                    return master_string.format(
-                        index=format_index(key_list),
-                        func_type=1,
-                        parameters=format_angle(equilibrium_values,
-                                               force_constants),
-                        )
-
-                def write_dihedral(key_list, equilibrium_values, force_constants):
-                    return master_string.format(
-                        index=format_index(key_list),
-                        func_type=2,
-                        parameters=format_angle(equilibrium_values,
-                                                   force_constants),
-                        )
-
-                # Writing the string
-                output = ['[ intermolecular_interactions ]',]
-
-                output.append('[ bonds ]')
-                output.append('; ai         aj      type bA         kA         bB         kB')
-                # Bonds: r1-l1 (r0, kr)
-                output.append(
-                    write_bond(('r1', 'l1'), 'r0', 'kr'))
-
-                output.append('[ angles ]')
-                output.append('; ai         aj         ak      type thA        fcA        thB        fcB')
-                # Angles: r2-r1-l1 (thetaA0, kthetaA)
-                output.append(
-                    write_angle(('r2', 'r1', 'l1'), 'thetaA0', 'kthetaA'))
-                # Angles: r1-l1-l2 (thetaB0, kthetaB)
-                output.append(
-                    write_angle(('r1', 'l1', 'l2'), 'thetaB0', 'kthetaB'))
-
-                output.append('[ dihedrals ]')
-                output.append('; ai         aj         ak         al      type phiA       fcA        phiB       fcB')
-                # Dihedrals: r3-r2-r1-l1 (phiA0, kphiA)
-                output.append(
-                    write_dihedral(('r3', 'r2', 'r1', 'l1'), 'phiA0', 'kphiA'))
-                # Dihedrals: r2-r1-l1-l2 (phiB0, kphiB)
-                output.append(
-                    write_dihedral(('r2', 'r1', 'l1', 'l2'), 'phiB0', 'kphiB'))
-                # Dihedrals: r1-l1-l2-l3 (phiC0, kphiC)
-                output.append(
-                    write_dihedral(('r1', 'l1', 'l2', 'l3'),'phiC0', 'kphiC'))
-
-                return '\n'.join(output)
+            if self._rest_type == 'boresch':
+                return self._gromacs_boresch()
             else:
                 raise NotImplementedError(
                     f'Restraint type {self.rest_type} not implemented '
