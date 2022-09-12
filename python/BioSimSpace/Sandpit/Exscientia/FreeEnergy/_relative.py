@@ -1178,7 +1178,7 @@ class Relative():
         # run without alchemlyb
         else:
             # Create the command.
-            command = "%s mbar -i %s/lambda_*/simfile.dat -o %s/mbar.txt --overlap --subsampling" % (_analyse_freenrg, work_dir, work_dir)
+            command = "%s mbar -i %s/lambda_*/simfile.dat* -o %s/mbar.txt --overlap --subsampling" % (_analyse_freenrg, work_dir, work_dir)
 
             # Run the first command.
             proc = _subprocess.run(_shlex.split(command), shell=False,
