@@ -29,9 +29,7 @@ class Test_gmx_ABFE():
     @staticmethod
     @pytest.fixture(scope='class')
     def freenrg():
-        m = BSS.Parameters.openff_unconstrained_2_0_0(
-                    "c1ccccc1").getMolecule()
-
+        m = BSS.IO.readMolecules("test/input/amber/ala/*").getMolecule(0)
         # Assign atoms for restraint
         atom_1 = m.getAtoms()[0]
         atom_2 = m.getAtoms()[1]
@@ -95,8 +93,7 @@ class Test_Somd_ABFE():
     @staticmethod
     @pytest.fixture(scope='class')
     def freenrg():
-        m = BSS.Parameters.openff_unconstrained_2_0_0(
-                    "c1ccccc1").getMolecule()
+        m = BSS.IO.readMolecules("test/input/amber/ala/*").getMolecule(0)
 
         # Assign atoms for restraint
         atom_1 = m.getAtoms()[0]

@@ -102,7 +102,6 @@ class TestMDRestraintsGenerator_analysis():
         assert (outdir / 'BoreschRestraint.top').is_file()
         with open(outdir / 'BoreschRestraint.top', 'r') as f:
             assert 'intermolecular_interactions' in f.read()
-<<<<<<< HEAD
 
     # @pytest.mark.xfail()
     def test_best_frame(self, restraint_search):
@@ -216,5 +215,4 @@ class TestBSS_analysis():
                 in restraint._restraint_dict['anchor_points']}
         assert idxs == {'r1':1560, 'r2':1558, 'r3':1562,
                         'l1':9, 'l2':8, 'l3':10}
-=======
->>>>>>> devel
+

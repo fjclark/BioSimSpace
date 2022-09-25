@@ -316,8 +316,8 @@ class RestraintSearch():
                 Default is 'Boresch'.
 
             method: str
-                The method to use to derive the restraints. Currently only 'MDRestraintsGenerator'
-                is supported.
+                The method to use to derive the restraints. 'BSS' or 'MDRestraintsGenerator'. 
+                BSS uses the native BioSimSpace derivation.
 
             append_to_lig_selection: str
                 Appends the supplied string to the default atom selection which chooses
@@ -428,8 +428,8 @@ class RestraintSearch():
                 method='MDRestraintsGenerator',
                 append_to_lig_selection="",
                 recept_selection_str='protein and name CA C N',
-                cutoff=5,
-                restraint_idx=0): # In Angstrom
+                cutoff=5, # In Angstrom
+                restraint_idx=0): 
         """Analyse existing trajectory from a simulation working directory and
         select restraints which best mimic the strongest receptor-ligand
         interactions.
