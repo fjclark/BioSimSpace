@@ -26,7 +26,7 @@ A class for holding restraints.
 import numpy as np
 from Sire.Units import k_boltz
 from Sire.Units import meter3 as Sire_meter3
-from Sire.Units import nanometer3 as Sire_nanometer3
+from Sire.Units import angstrom3 as Sire_angstrom3
 from Sire.Units import mole as Sire_mole
 
 from .._SireWrappers import Atom
@@ -34,7 +34,7 @@ from ..Types import Length, Angle, Temperature
 from .._SireWrappers import System as _System
 from ..Units.Length import nanometer
 from ..Units.Length import angstrom
-from ..Units.Area import nanometer2
+from ..Units.Area import angstrom2
 from ..Units.Temperature import kelvin
 from ..Units.Angle import degree, radian
 from ..Units.Energy import kj_per_mol, kcal_per_mol
@@ -351,60 +351,67 @@ class Restraint():
             raise NotImplementedError(f'MD Engine {engine} not implemented '
                                       f'yet. Only Gromacs and SOMD are supported.')
 
-    def getCorrection(self, unit="kcal_per_mol"):
+    def getCorrection(self):
         """Calculate the free energy of releasing the restraint
         to the standard state volume.'''
-
-           Parameters
-           ----------
-           unit : str
-               The unit in which to return the energy
-               ("kj_per_mol" or "kcal_per_mol"). Defaults to "kcal_per_mol".
 
            Returns
            ----------
            dG : float
-            Free energy of releasing the restraint to the standard state volume.
+               Free energy of releasing the restraint to the standard state volume,
+               in kcal / mol.
         """
 
-        allowed_units = ['kj_per_mol', 'kcal_per_mol']
-        unit = unit.lower()
-        if unit not in allowed_units:
-            raise ValueError(f'Unit {unit} not allowed. Allowed units are '
-                             f'{allowed_units}')
-
         if self._rest_type == 'boresch':
-            K = k_boltz * (kcal_per_mol / kelvin) / (kj_per_mol / kelvin) # Gas constant in kJ/mol/K
-            V = ((Sire_meter3 / 1000 / Sire_mole) / Sire_nanometer3).value() # standard volume in nm^3 (liter/N_A)
 
+            # Constants. Take .value() to avoid issues with ** and log of GeneralUnit
+            v0 = (((Sire_meter3 / 1000 ) / Sire_mole) / Sire_angstrom3).value() # standard state volume in A^3
+            R = (k_boltz * kcal_per_mol / kelvin).value() # molar gas constant in kcal mol-1 K-1
+            
+            # Parameters
             T = self.T / kelvin # Temperature in Kelvin
-            r0 = self._restraint_dict['equilibrium_values']['r0'] / nanometer # Distance in nm
-            thA = self._restraint_dict['equilibrium_values']['thetaA0'] / radian # Angle in radians
-            thB = self._restraint_dict['equilibrium_values']['thetaB0'] / radian  # Angle in radians
+            r0 = self._restraint_dict['equilibrium_values']['r0'] / angstrom # Distance in A
+            thetaA0 = self._restraint_dict['equilibrium_values']['thetaA0'] / radian # Angle in radians
+            thetaB0 = self._restraint_dict['equilibrium_values']['thetaB0'] / radian  # Angle in radians
 
-            K_r = self._restraint_dict['force_constants']['kr'] / (kj_per_mol / nanometer2) # force constant for distance (kJ/mol/nm^2)
-            K_thA = self._restraint_dict['force_constants']['kthetaA'] / (kj_per_mol / (radian * radian))  # force constant for angle (kJ/mol/rad^2)
-            K_thB = self._restraint_dict['force_constants']['kthetaB'] / (kj_per_mol / (radian * radian))  # force constant for angle (kJ/mol/rad^2)
-            K_phiA = self._restraint_dict['force_constants']['kphiA'] / (kj_per_mol / (radian * radian))  # force constant for dihedral (kJ/mol/rad^2)
-            K_phiB = self._restraint_dict['force_constants']['kphiB'] / (kj_per_mol / (radian * radian))  # force constant for dihedral (kJ/mol/rad^2)
-            K_phiC = self._restraint_dict['force_constants']['kphiC'] / (kj_per_mol / (radian * radian))  # force constant for dihedral (kJ/mol/rad^2)
+            prefactor = 8 * (np.pi ** 2) * v0 # Divide this to account for force constants of 0
+            force_constants = []
 
-            # Convert all the units to float before this calculation as BSS cannot handle root
-            arg = ((8.0 * np.pi ** 2 * V) /
-                   (r0 ** 2 * np.sin(thA) * np.sin(thB)) *
-                   (((K_r * K_thA * K_thB * K_phiA * K_phiB * K_phiC) ** 0.5) /
-                    ((2.0 * np.pi * K * T) ** 3)))
+            # Loop through and correct for force constants of zero,
+            # which break the analytical correction. Note that setting 
+            # certain force constants to zero while others are non-zero
+            # will result in unstable restraints, but this will be checked when
+            # the restraint object is created
+            for k, val in self._restraint_dict["force_constants"].items():
+                if val == 0:
+                    if k == "kr":
+                        raise ValueError("The force constant kr must not be zero")
+                    if k == "kthetaA":
+                        prefactor /= 2 / np.sin(thetaA0)
+                    if k == "kthetaB":
+                        prefactor /= 2 / np.sin(thetaB0)
+                    if k[:4] == "kphi":
+                        prefactor /= 2 * np.pi
+                else:
+                    if k == "kr":
+                        force_constants.append(val / (kcal_per_mol / angstrom2))
+                    else:
+                        force_constants.append(val / (kcal_per_mol / (radian * radian)))
 
-            dG = - K * T * np.log(arg)
-            # Attach unit
-            if unit == "kj_per_mol":
-                dG *= kj_per_mol
-            elif unit == "kcal_per_mol":
-                dG *= (kj_per_mol/kcal_per_mol)*kcal_per_mol
-            return dG
+            # Calculation
+            n_nonzero_k = len(force_constants)
+            prod_force_constants = np.prod(force_constants)
+            numerator = prefactor * np.sqrt(prod_force_constants)
+            denominator = (r0 ** 2) * np.sin(thetaA0) * np.sin(thetaB0) * (2 * np.pi * R * T) ** (n_nonzero_k / 2)
+
+            # Compute dg and attach unit
+            dg = - R *T * np.log(numerator / denominator)
+            dg *= kcal_per_mol
+
+            return dg
 
 
     @property
     def correction(self):
         '''Give the free energy of removing the restraint.'''
-        return self.getCorrection(unit="kcal_per_mol")
+        return self.getCorrection()
