@@ -758,7 +758,16 @@ class RestraintSearch():
     @staticmethod
     def _boresch_restraint_BSS(u, system, temperature, lig_selection_str,
                            recept_selection_str, work_dir, cutoff, restraint_idx=0):
-        """Generate the Boresch Restraint.
+        """Generate the Boresch Restraint. This method was inspired by Irfan Alibay's
+        MDRestraintsGenerator. Please see:
+
+        https://doi.org/10.5281/zenodo.4570556
+        https://doi.org/10.1038/s42004-022-007
+
+        Some of the main differences compared to MDRestraintsGenerator are:
+
+            - Scoring by configurational volume, rather than total variance
+            - Setting the force constants based on variances, rather than uniformly
 
         Parameters
         ----------
