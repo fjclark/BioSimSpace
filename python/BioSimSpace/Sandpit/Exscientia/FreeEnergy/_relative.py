@@ -1128,7 +1128,7 @@ class Relative():
 
         # Name the first directory.
         if self._engine == "SOMD":
-            first_dir = f"{self._work_dir}/lambda_{lam.values[0]:.3f}"
+            first_dir = f"{self._work_dir}/lambda_{lam.values[0]:5.4f}"
         else:
             first_dir = f"{self._work_dir}/lambda_{self._protocol.getLambdaIndex()}"
 
