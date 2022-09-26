@@ -141,6 +141,21 @@ class Restraint():
                     raise ValueError(
                         f"restraint_dict['force_constants']['{key}'] must be of type "
                         f"'BioSimSpace.Types.Energy'/'BioSimSpace.Types.Angle^2'")
+
+            # Test for unstable combinations of force constants
+            non_zero_force_const = [i[0] for i in restraint_dict["force_constants"].items() if i[1].value() != 0]
+            print(non_zero_force_const)
+            if "kr" not in non_zero_force_const:
+                raise ValueError('"kr" cannot be zero')
+            if "kthetaA" not in non_zero_force_const:
+                if "kphiA" in non_zero_force_const or "kphiB" in non_zero_force_const:
+                    raise ValueError('Restraining phiA or phiB without restraining thetaA '
+                                      'will produce unstable Boresch restraints.')
+            if "kthetaB" not in non_zero_force_const:
+                if "kphiB" in non_zero_force_const or "kphiC" in non_zero_force_const:
+                    raise ValueError('Restraining phiB or phiC without restraining thetaB '
+                                      'will produce unstable Boresch restraints.')
+
         else:
             raise NotImplementedError(f'Restraint type {type} not implemented '
                                       f'yet. Only boresch restraint is supported.')
