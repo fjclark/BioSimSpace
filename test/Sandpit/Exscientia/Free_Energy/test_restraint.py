@@ -54,8 +54,12 @@ def test_sanity(restraint):
     'Sanity check'
     assert isinstance(restraint, Restraint)
 
-def test_correction(restraint):
-    dG = restraint.correction / kcal_per_mol
+def test_semi_analytical_correction(restraint):
+    dG = restraint.getCorrection(method="semi-analytical") / kcal_per_mol
+    assert np.isclose(-7.2, dG, atol=0.1)
+
+def test_analytical_correction(restraint):
+    dG = restraint.getCorrection(method="analytical") / kcal_per_mol
     assert np.isclose(-7.2, dG, atol=0.1)
 
 class TestGromacsOutput():
@@ -125,12 +129,12 @@ class TestSomdOutput():
 
     def test_indices(self, getRestraintSomd):
         anchor_points = getRestraintSomd["anchor_points"]
-        assert anchor_points["r1"] == 1
-        assert anchor_points["r2"] == 2
-        assert anchor_points["r3"] == 3
-        assert anchor_points["l1"] == 1496
-        assert anchor_points["l2"] == 1497
-        assert anchor_points["l3"] == 1498
+        assert anchor_points["r1"] == 0
+        assert anchor_points["r2"] == 1
+        assert anchor_points["r3"] == 2
+        assert anchor_points["l1"] == 1495
+        assert anchor_points["l2"] == 1496
+        assert anchor_points["l3"] == 1497
 
     def test_equil_vals(self, getRestraintSomd):
         equil_vals = getRestraintSomd["equilibrium_values"]
