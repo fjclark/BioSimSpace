@@ -24,6 +24,7 @@ A class for holding restraints.
 """
 
 import numpy as np
+from scipy import integrate as _integrate
 from Sire.Units import k_boltz
 from Sire.Units import meter3 as Sire_meter3
 from Sire.Units import angstrom3 as Sire_angstrom3
@@ -351,9 +352,18 @@ class Restraint():
             raise NotImplementedError(f'MD Engine {engine} not implemented '
                                       f'yet. Only Gromacs and SOMD are supported.')
 
-    def getCorrection(self):
+
+    def getCorrection(self, method="semi-analytical"):
         """Calculate the free energy of releasing the restraint
         to the standard state volume.'''
+
+           Parameters
+           ----------
+
+           method : str
+               The integration method to use for calculating the correction for
+               releasing the restraint to the standard state concentration. 
+               "semi-analytical" or "analytical". 
 
            Returns
            ----------
@@ -370,45 +380,148 @@ class Restraint():
             
             # Parameters
             T = self.T / kelvin # Temperature in Kelvin
-            r0 = self._restraint_dict['equilibrium_values']['r0'] / angstrom # Distance in A
-            thetaA0 = self._restraint_dict['equilibrium_values']['thetaA0'] / radian # Angle in radians
-            thetaB0 = self._restraint_dict['equilibrium_values']['thetaB0'] / radian  # Angle in radians
+            prefactor = 8 * (np.pi ** 2) * v0 # In A^3. Divide this to account for force constants of 0 in the 
+                                              # analytical correction
 
-            prefactor = 8 * (np.pi ** 2) * v0 # Divide this to account for force constants of 0
-            force_constants = []
+            if method == "semi-analytical":
+                    # ========= Acknowledgement ===============
+                    # Calculation copied from restraints.py  in
+                    # Yank https://github.com/choderalab/yank 
+                    # =========================================
+                
+                def numerical_distance_integrand(r, r0, kr):
+                    """Integrand for harmonic distance restraint. Domain is on [0, infinity], 
+                    but this will be truncated to [0, 8 RT] for practicality.
 
-            # Loop through and correct for force constants of zero,
-            # which break the analytical correction. Note that setting 
-            # certain force constants to zero while others are non-zero
-            # will result in unstable restraints, but this will be checked when
-            # the restraint object is created
-            for k, val in self._restraint_dict["force_constants"].items():
-                if val == 0:
-                    if k == "kr":
-                        raise ValueError("The force constant kr must not be zero")
-                    if k == "kthetaA":
-                        prefactor /= 2 / np.sin(thetaA0)
-                    if k == "kthetaB":
-                        prefactor /= 2 / np.sin(thetaB0)
-                    if k[:4] == "kphi":
-                        prefactor /= 2 * np.pi
-                else:
-                    if k == "kr":
-                        force_constants.append(val / (kcal_per_mol / angstrom2))
+                    Parameters
+                    ----------
+                        r : (float)
+                            Distance to be integrated, in Angstrom 
+                        r0 : (float)
+                            Equilibrium distance, in Angstrom
+                        kr : (float)
+                            Force constant, in kcal mol-1 A-2
+
+                    Returns
+                    ----------
+                        float : Value of integrand
+                    """
+                    return (r ** 2) * np.exp(-(kr * (r - r0) ** 2) / (2 * R * T))
+
+
+                def numerical_angle_integrand(theta, theta0, ktheta):
+                    """Integrand for harmonic angle restraints. Domain is on [0,pi].
+
+                    Parameters
+                    ----------
+                        theta : (float)
+                        Angle to be integrated, in radians
+                        theta0 : (float)
+                        Equilibrium angle, in radians
+                        ktheta : (float)
+                        Force constant, in kcal mol-1 rad-2
+
+                    Returns
+                    ----------
+                        float: Value of integrand
+                    """
+                    return np.sin(theta) * np.exp(-(ktheta * (theta - theta0) ** 2) / (2 * R * T))
+
+
+                def numerical_dihedral_integrand(phi, phi0, kphi):
+                    """Integrand for the harmonic dihedral restraints. Domain is on [-pi,pi].
+
+                    Parameters
+                    ----------
+                        phi : (float)
+                        Angle to be integrated, in radians
+                        phi0 : (float)
+                        Equilibrium angle, in radians
+                        kphi : (float)
+                        Force constant, in kcal mol-1 rad-2
+
+                    Returns
+                    ----------
+                        float: Value of integrand
+                    """
+                    d_phi = abs(phi - phi0)
+                    d_phi_corrected = min(d_phi, 2 * np.pi - d_phi) # correct for periodic boundaries
+                    return np.exp(-(kphi * d_phi_corrected ** 2) / (2 * R * T))
+
+                # Radial
+                r0 = self._restraint_dict['equilibrium_values']['r0'] / angstrom # A
+                kr = self._restraint_dict['force_constants']['kr'] / (kcal_per_mol / angstrom2) # kcal mol-1 A-2
+                dist_at_8RT = 4 * np.sqrt((R * T) / kr) # Dist. which gives restraint energy = 8 RT
+                r_min = max(0, r0 - dist_at_8RT)
+                r_max = r0 + dist_at_8RT
+                integrand = lambda r: numerical_distance_integrand(r, r0, kr)
+                z_r = _integrate.quad(integrand, r_min, r_max)[0]
+
+                # Angular
+                for angle in ["thetaA", "thetaB"]:
+                    theta0 = self._restraint_dict["equilibrium_values"][f"{angle}0"] / radian # rad
+                    ktheta = self._restraint_dict["force_constants"][f"k{angle}"] / (kcal_per_mol / (radian * radian)) # kcal mol-1 rad-2
+                    integrand = lambda theta: numerical_angle_integrand(theta, theta0, ktheta)
+                    z_r *= _integrate.quad(integrand, 0, np.pi)[0]
+
+                # Dihedral
+                for dihedral in ["phiA", "phiB", "phiC"]:
+                    phi0 = self._restraint_dict["equilibrium_values"][f"{dihedral}0"] / radian # rad
+                    kphi = self._restraint_dict["force_constants"][f"k{dihedral}"] / (kcal_per_mol / (radian * radian)) # kcal mol-1 rad-2
+                    integrand = lambda phi: numerical_dihedral_integrand(phi, phi0, kphi)
+                    z_r *= _integrate.quad(integrand, -np.pi, np.pi)[0]
+
+                # Compute dg and attach unit
+                dg = -R * T * np.log(prefactor / z_r)
+                dg *= kcal_per_mol
+
+                return dg
+
+
+            elif method == "analytical":
+                # Only need three equilibrium values for the analytical correction
+                r0 = self._restraint_dict['equilibrium_values']['r0'] / angstrom # Distance in A
+                thetaA0 = self._restraint_dict['equilibrium_values']['thetaA0'] / radian # Angle in radians
+                thetaB0 = self._restraint_dict['equilibrium_values']['thetaB0'] / radian  # Angle in radians
+
+                force_constants = []
+
+                # Loop through and correct for force constants of zero,
+                # which break the analytical correction. To account for this,
+                # divide the prefactor accordingly. Note that setting 
+                # certain force constants to zero while others are non-zero
+                # will result in unstable restraints, but this will be checked when
+                # the restraint object is created
+                for k, val in self._restraint_dict["force_constants"].items():
+                    if val.value() == 0:
+                        if k == "kr":
+                            raise ValueError("The force constant kr must not be zero")
+                        if k == "kthetaA":
+                            prefactor /= 2 / np.sin(thetaA0)
+                        if k == "kthetaB":
+                            prefactor /= 2 / np.sin(thetaB0)
+                        if k[:4] == "kphi":
+                            prefactor /= 2 * np.pi
                     else:
-                        force_constants.append(val / (kcal_per_mol / (radian * radian)))
+                        if k == "kr":
+                            force_constants.append(val / (kcal_per_mol / angstrom2))
+                        else:
+                            force_constants.append(val / (kcal_per_mol / (radian * radian)))
 
-            # Calculation
-            n_nonzero_k = len(force_constants)
-            prod_force_constants = np.prod(force_constants)
-            numerator = prefactor * np.sqrt(prod_force_constants)
-            denominator = (r0 ** 2) * np.sin(thetaA0) * np.sin(thetaB0) * (2 * np.pi * R * T) ** (n_nonzero_k / 2)
+                # Calculation
+                n_nonzero_k = len(force_constants)
+                prod_force_constants = np.prod(force_constants)
+                numerator = prefactor * np.sqrt(prod_force_constants)
+                denominator = (r0 ** 2) * np.sin(thetaA0) * np.sin(thetaB0) * (2 * np.pi * R * T) ** (n_nonzero_k / 2)
 
-            # Compute dg and attach unit
-            dg = - R *T * np.log(numerator / denominator)
-            dg *= kcal_per_mol
+                # Compute dg and attach unit
+                dg = - R * T * np.log(numerator / denominator)
+                dg *= kcal_per_mol
 
-            return dg
+                return dg
+
+            else:
+                raise ValueError('method must be one of "semi-analytical" or "analytical"')
 
 
     @property
