@@ -170,11 +170,6 @@ class Restraint():
                 min_stable_dist = np.sqrt((20 * R * T) / force_const)
                 min_dist = min([abs(equil_val - 0), abs(equil_val - np.pi)])
 
-                print(angle)
-                print(force_const)
-                print(equil_val)
-                print(min_stable_dist)
-                print(min_dist)
                 if min_dist < min_stable_dist:
                     print("WARNING")
                     _warnings.warn(f"The equilibrium value of {angle} is within 10 kT of"

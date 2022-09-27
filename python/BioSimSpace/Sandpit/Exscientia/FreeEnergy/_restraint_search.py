@@ -1116,22 +1116,28 @@ class RestraintSearch():
                             key=lambda item: item[1]["config_vol"]):
                 pairs_ordered_boresch_var.append(item[0])
 
-            # Filter out r < 1, theta >150 or < 30
+            # Filter out force restraints with with 10 kT of collinearity or r = 0
+            # Convert 10 kT to angle
+            R = k_boltz # molar gas constant in kcal mol-1 K-1
+            min_stable_dist = lambda k : _np.sqrt((20 * R * temp) / k) # Get the "distance" at which 
+                                                                    # restraint penalty is 10 kT
             pairs_ordered_boresch = []
             for pair in pairs_ordered_boresch_var:
-                # Might be an improvement to filter by kT to collinearity, rather than distance,
-                # although this also could be problematic when the distrubutions are far
-                # from Gaussian
-                cond_dist = boresch_dof_data[pair]["r"]["avg"] > 1
-                avg_angles = []
-                angles = ["thetaA",
-                        "thetaB"]  # May also be good to check internal angles, although will be much stiffer
-                for angle in angles:
-                    avg_angles.append(boresch_dof_data[pair][angle]["avg"])
-                cond_angles = list(
-                    map(lambda x: (x < 2.62 and x > 0.52), avg_angles)) # 150 and 30 degrees
-                if cond_dist and all(cond_angles):
-                    pairs_ordered_boresch.append(pair)
+                # Check equil distance
+                r0 = boresch_dof_data[pair]["r"]["avg"]
+                kr = boresch_dof_data[pair]["r"]["k"]
+                if r0 < min_stable_dist(kr):
+                    continue # Don't add anchors due to potential instability
+                for angle in ["thetaA", "thetaB", "thetaR", "thetaL"]:
+                    # Check equil angle
+                    ang0 = boresch_dof_data[pair][f"{angle}"]["avg"]
+                    kang = boresch_dof_data[pair][f"{angle}"]["k"]
+                    # Check minimum distance to collinearity
+                    min_dist = min([abs(ang0 - 0), abs(ang0 - _np.pi)])
+                    if min_dist < min_stable_dist(kang):
+                        continue # Don't add anchors due to potential instability
+                # No likely instabilities, add pair
+                pairs_ordered_boresch.append(pair)
 
             if len(pairs_ordered_boresch) == 0:
                 raise _AnalysisError(
