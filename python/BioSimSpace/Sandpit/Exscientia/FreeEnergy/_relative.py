@@ -1176,7 +1176,7 @@ class Relative():
             self._protocol.setLambda(lam)
             # Name the directory.
             if self._engine == "SOMD":
-                new_dir = f"{self._work_dir}/lambda_{lam.values[0]:.3f}"
+                new_dir = f"{self._work_dir}/lambda_{lam.values[0]:5.4f}"
             # If using GROMACS, doesn't make sense to use single value of lambda
             # when using lambda array.
             else:
