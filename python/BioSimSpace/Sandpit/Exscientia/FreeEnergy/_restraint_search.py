@@ -302,7 +302,7 @@ class RestraintSearch():
                 method='MDRestraintsGenerator',
                 append_to_lig_selection="",
                 recept_selection_str='protein and name CA C N',
-                cutoff=5, # In Angstrom
+                cutoff=8, # In Angstrom
                 restraint_idx=0,
                 block='AUTO'):
         """Analyse trajectory and select restraints which best mimic strongest
@@ -428,7 +428,7 @@ class RestraintSearch():
                 method='MDRestraintsGenerator',
                 append_to_lig_selection="",
                 recept_selection_str='protein and name CA C N',
-                cutoff=5, # In Angstrom
+                cutoff=8, # In Angstrom
                 restraint_idx=0): 
         """Analyse existing trajectory from a simulation working directory and
         select restraints which best mimic the strongest receptor-ligand
