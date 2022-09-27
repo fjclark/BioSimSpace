@@ -92,6 +92,7 @@ from .._SireWrappers import System as _System
 from ..Trajectory._trajectory import Trajectory as _Trajectory
 from .. import Process as _Process
 from .. import Protocol as _Protocol
+from ..Types import Length as _Length
 from ..Types import Temperature as _Temperature
 from .. import Units as _Units
 from ..Units.Length import angstrom as _angstrom
@@ -302,7 +303,8 @@ class RestraintSearch():
                 method='MDRestraintsGenerator',
                 append_to_lig_selection="",
                 recept_selection_str='protein and name CA C N',
-                cutoff=8, # In Angstrom
+                force_constant = None,
+                cutoff=8 * _angstrom, 
                 restraint_idx=0,
                 block='AUTO'):
         """Analyse trajectory and select restraints which best mimic strongest
@@ -333,10 +335,18 @@ class RestraintSearch():
                 'protein and name CA C N'. Uses the mdanalysis atom selection
                 language.
 
-            cutoff: float
-                The greatest distance between ligand and receptor anchor atoms, in
-                Angstrom. Receptor anchors further than cutoff Angstroms from the closest
-                ligand anchors will not be included in the search for potential anchor points.
+            force_constant: BioSimSpace.Types.Energy / BioSimSpace.Types.Area
+                The force constant to use for all restraints. For angles, the units of
+                area will be converted to A-2 and exchanged for rad-2. If None, 
+                the default force constants are used, which are 10 kcal mol-1 A-2 [rad-2] when 
+                method == "MDRestraintsGenerator", or fit to fluctuations observed during
+                the simulation is method == "BSS".
+
+           cutoff: BioSimSpace.Types.Length
+               The greatest distance between ligand and receptor anchor atoms.
+               Only affects behaviour when method == "BSS" Receptor anchors 
+               further than cutoff Angstroms from the closest ligand anchors will not 
+               be included in the search for potential anchor points.
 
             restraint_idx: int
                 The index of the restraint from a list of candidate restraints ordered by
@@ -366,6 +376,7 @@ class RestraintSearch():
                 append_to_lig_selection=append_to_lig_selection,
                 recept_selection_str=recept_selection_str,
                 cutoff=cutoff,
+                force_constant=force_constant,
                 restraint_idx=restraint_idx)
 
     def _initialise_process(self, system, gpu_support, **kwargs):
@@ -428,7 +439,8 @@ class RestraintSearch():
                 method='MDRestraintsGenerator',
                 append_to_lig_selection="",
                 recept_selection_str='protein and name CA C N',
-                cutoff=8, # In Angstrom
+                force_constant=None,
+                cutoff=8 * _angstrom,
                 restraint_idx=0): 
         """Analyse existing trajectory from a simulation working directory and
         select restraints which best mimic the strongest receptor-ligand
@@ -473,10 +485,18 @@ class RestraintSearch():
                'protein and name CA C N'. Uses the mdanalysis atom selection
                language.
 
-           cutoff: float
-               The greatest distance between ligand and receptor anchor atoms, in
-               Angstrom. Receptor anchors further than cutoff Angstroms from the closest
-               ligand anchors will not be included in the search for potential anchor points.
+           force_constant: BioSimSpace.Types.Energy / BioSimSpace.Types.Area
+               The force constant to use for all restraints. For angles, the units of
+               area will be converted to A-2 and exchanged for rad-2. If None, 
+               the default force constants are used, which are 10 kcal mol-1 A-2 [rad-2] when 
+               method == "MDRestraintsGenerator", or fit to fluctuations observed during
+               the simulation is method == "BSS".
+
+           cutoff: BioSimSpace.Types.Length
+               The greatest distance between ligand and receptor anchor atoms.
+               Only affects behaviour when method == "BSS" Receptor anchors 
+               further than cutoff Angstroms from the closest ligand anchors will not 
+               be included in the search for potential anchor points.
 
             restraint_idx: int
                 The index of the restraint from a list of candidate restraints ordered by
@@ -527,8 +547,15 @@ class RestraintSearch():
         if not isinstance(recept_selection_str, str):
             raise TypeError(f"append_to_recept_selection {type(recept_selection_str)} must be of type 'str'.")
         
-        if not isinstance(cutoff, (int, float)):
-            raise TypeError(f"cutoff {type(cutoff)} must be of type 'int' or 'float'.")
+        if not isinstance(cutoff, _Length):
+            raise TypeError(f"cutoff {type(cutoff)} must be of type 'BioSimSpace.Types.Length.'")
+
+        if force_constant:
+            dim = force_constant.dimensions()
+            if dim != (0, 0, 0, 1, -1, 0, -2):
+                raise ValueError("force_constant must be of type "
+                                 "'BioSimSpace.Types.Energy'/'BioSimSpace.Types.Length^2'"
+                                 " or NoneType")
         
         # There must be a single molecule to be decoupled (or annihilated).
         if system.nDecoupledMolecules() != 1:
@@ -552,13 +579,14 @@ class RestraintSearch():
         if rest_type.lower() == 'boresch':
             return RestraintSearch._boresch_restraint(
                 u, system, temperature, lig_selection_str,
-                recept_selection_str, method, work_dir, cutoff,
+                recept_selection_str, method, work_dir, 
+                force_constant, cutoff,
                 restraint_idx=restraint_idx)
 
     @staticmethod
     def _boresch_restraint(u, system, temperature, lig_selection_str,
-                           recept_selection_str, method, work_dir, cutoff,
-                           restraint_idx=0):
+                           recept_selection_str, method, work_dir, force_constant, 
+                           cutoff, restraint_idx=0):
         """Generate the Boresch Restraint.
 
            Parameters
@@ -592,10 +620,18 @@ class RestraintSearch():
            work_dir : str
                The working directory for the simulation.
 
-           cutoff: float
-               The greatest distance between ligand and receptor anchor atoms, in
-               Angstrom. Receptor anchors further than cutoff Angstroms from the closest
-               ligand anchors will not be included in the search for potential anchor points.
+           force_constant: BioSimSpace.Types.Energy / BioSimSpace.Types.Area
+               The force constant to use for all restraints. For angles, the units of
+               area will be converted to A-2 and exchanged for rad-2. If None, 
+               the default force constants are used, which are 10 kcal mol-1 A-2 [rad-2] when 
+               method == "MDRestraintsGenerator", or fit to fluctuations observed during
+               the simulation is method == "BSS".
+
+           cutoff: BioSimSpace.Types.Length
+               The greatest distance between ligand and receptor anchor atoms.
+               Only affects behaviour when method == "BSS" Receptor anchors 
+               further than cutoff Angstroms from the closest ligand anchors will not 
+               be included in the search for potential anchor points.
 
             restraint_idx: int
                 The index of the restraint from a list of candidate restraints ordered by
@@ -615,53 +651,60 @@ class RestraintSearch():
             if is_MDRestraintsGenerator:
                 return RestraintSearch._boresch_restraint_MDRestraintsGenerator(
                     u, system, temperature, lig_selection_str,
-                    recept_selection_str, work_dir)
+                    recept_selection_str, force_constant, work_dir)
             else:
                 raise ImportError('MDRestraintsGenerator not available.')
 
         elif method == "BSS":
             return RestraintSearch._boresch_restraint_BSS(
                 u, system, temperature, lig_selection_str,
-                recept_selection_str, work_dir, cutoff,
-                restraint_idx=restraint_idx)
+                recept_selection_str, work_dir, force_constant,
+                cutoff, restraint_idx=restraint_idx)
 
     @staticmethod
     def _boresch_restraint_MDRestraintsGenerator(u, system, temperature, lig_selection_str,
-                           recept_selection_str, work_dir):
+                           recept_selection_str, force_constant, work_dir):
         """Generate the Boresch Restraint using MDRestraintsGenerator.
-
-       Parameters
-       ----------
-
-       u : MDAnalysis.Universe
-           The trajectory for the ABFE restraint calculation as a
-           MDAnalysis.Universe object.
-
-       system : :class:`System <BioSimSpace._SireWrappers.System>`
-           The molecular system for the ABFE restraint calculation. This
-           must contain a single decoupled molecule and is assumed to have
-           already been equilibrated.
-
-       temperature : :class:`System <BioSimSpace.Types.Temperature>`
-           The temperature of the system
-
-       lig_selection_str: str
-           The selection string for the atoms in the ligand to consider
-           as potential anchor points.
-
-       recept_selection_str: str
-           The selection string for the protein in the ligand to consider
-           as potential anchor points.
-
-       work_dir : str
-           The working directory for the simulation.
-
-       Returns
-       -------
-
-       restraint : :class:`Restraint <BioSimSpace.Sandpit.Exscientia.FreeEnergy.Restraint>`
-           The restraints of `rest_type` which best mimic the strongest receptor-ligand
-           interactions.
+ 
+        Parameters
+        ----------
+ 
+        u : MDAnalysis.Universe
+            The trajectory for the ABFE restraint calculation as a
+            MDAnalysis.Universe object.
+ 
+        system : :class:`System <BioSimSpace._SireWrappers.System>`
+            The molecular system for the ABFE restraint calculation. This
+            must contain a single decoupled molecule and is assumed to have
+            already been equilibrated.
+ 
+        temperature : :class:`System <BioSimSpace.Types.Temperature>`
+            The temperature of the system
+ 
+        lig_selection_str: str
+            The selection string for the atoms in the ligand to consider
+            as potential anchor points.
+ 
+        recept_selection_str: str
+            The selection string for the protein in the ligand to consider
+            as potential anchor points.
+ 
+        force_constant: BioSimSpace.Types.Energy / BioSimSpace.Types.Area
+            The force constant to use for all restraints. For angles, the units of
+            area will be converted to A-2 and exchanged for rad-2. If None, 
+            the default force constants are used, which are 10 kcal mol-1 A-2 [rad-2] when 
+            method == "MDRestraintsGenerator", or fit to fluctuations observed during
+            the simulation is method == "BSS".
+ 
+        work_dir : str
+            The working directory for the simulation.
+ 
+        Returns
+        -------
+ 
+        restraint : :class:`Restraint <BioSimSpace.Sandpit.Exscientia.FreeEnergy.Restraint>`
+            The restraints of `rest_type` which best mimic the strongest receptor-ligand
+            interactions.
         """
         ligand_atoms = _search.find_ligand_atoms(
             u,
@@ -703,26 +746,34 @@ class RestraintSearch():
         l1_idx, r1_idx, r2_idx, r3_idx = boresch.restraint.dihedrals[
             2].atomgroup.atoms.ix
 
+        # Select force constants
+        if force_constant:
+            k_dist = force_constant
+            k_ang = (force_constant / (_kcal_per_mol / (_angstrom ** 2))) * _kcal_per_mol / (_radian ** 2)
+        else:
+            k_dist = 10 * _kcal_per_mol / (_angstrom ** 2)
+            k_ang = 10 * _kcal_per_mol / (_radian ** 2)
+
         # The index of the best frame
         index = boresch.restraint.min_frame
         # r1-l1 (r0, kr)
         r0 = boresch.restraint.bond.values[index] * _angstrom
-        kr = 10 * _kcal_per_mol / (_angstrom ** 2)
+        kr = k_dist
         # r2-r1-l1 (thetaA0, kthetaA)
         thetaA0 = boresch.restraint.angles[1].values[index] * _degree
-        kthetaA = 10 * _kcal_per_mol / (_radian ** 2)
+        kthetaA = k_ang
         # r1-l1-l2 (thetaB0, kthetaB)
         thetaB0 = boresch.restraint.angles[0].values[index] * _degree
-        kthetaB = 10 * _kcal_per_mol / (_radian ** 2)
+        kthetaB = k_ang
         # r3-r2-r1-l1 (phiA0, kphiA)
         phiA0 = boresch.restraint.dihedrals[2].values[index] * _degree
-        kphiA = 10 * _kcal_per_mol / (_radian ** 2)
+        kphiA = k_ang
         # r2-r1-l1-l2 (phiB0, kphiB)
         phiB0 = boresch.restraint.dihedrals[1].values[index] * _degree
-        kphiB = 10 * _kcal_per_mol / (_radian ** 2)
+        kphiB = k_ang
         # r1-l1-l2-l3 (phiC0, kphiC)
         phiC0 = boresch.restraint.dihedrals[0].values[index] * _degree
-        kphiC = 10 * _kcal_per_mol / (_radian ** 2)
+        kphiC = k_ang
 
         restraint_dict = {
             # The default index is in the format of numpy.int64
@@ -757,7 +808,8 @@ class RestraintSearch():
 
     @staticmethod
     def _boresch_restraint_BSS(u, system, temperature, lig_selection_str,
-                           recept_selection_str, work_dir, cutoff, restraint_idx=0):
+                           recept_selection_str, work_dir,  force_constant,
+                           cutoff, restraint_idx=0):
         """Generate the Boresch Restraint. This method was inspired by Irfan Alibay's
         MDRestraintsGenerator. Please see:
 
@@ -795,10 +847,18 @@ class RestraintSearch():
         work_dir : str
             The working directory for the simulation.
 
-        cutoff: float
-            The greatest distance between ligand and receptor anchor atoms, in
-            Angstrom. Receptor anchors further than cutoff Angstroms from the closest
-            ligand anchors will not be included in the search for potential anchor points.
+        force_constant: BioSimSpace.Types.Energy / BioSimSpace.Types.Area
+            The force constant to use for all restraints. For angles, the units of
+            area will be converted to A-2 and exchanged for rad-2. If None, 
+            the default force constants are used, which are 10 kcal mol-1 A-2 [rad-2] when 
+            method == "MDRestraintsGenerator", or fit to fluctuations observed during
+            the simulation is method == "BSS".
+
+        cutoff: BioSimSpace.Types.Length
+            The greatest distance between ligand and receptor anchor atoms.
+            Only affects behaviour when method == "BSS" Receptor anchors 
+            further than cutoff Angstroms from the closest ligand anchors will not 
+            be included in the search for potential anchor points.
 
         restraint_idx: int
             The index of the restraint from a list of candidate restraints ordered by
@@ -833,10 +893,11 @@ class RestraintSearch():
                 The selection string for the protein in the ligand to consider
                 as potential anchor points.
 
-            cutoff: float
-                The greatest distance between ligand and receptor anchor atoms, in
-                Angstrom. Receptor anchors further than cutoff Angstroms from the closest
-                ligand anchors will not be included in the search for potential anchor points.
+            cutoff: BioSimSpace.Types.Length
+                The greatest distance between ligand and receptor anchor atoms.
+                Only affects behaviour when method == "BSS" Receptor anchors 
+                further than cutoff Angstroms from the closest ligand anchors will not 
+                be included in the search for potential anchor points.
 
             Returns
             -------
@@ -852,7 +913,7 @@ class RestraintSearch():
             # Get all receptor atoms within specified distance of cutoff
             for lig_atom in lig_selection:
                 for prot_atom in u.select_atoms(
-                        f"{recept_selection_str} and (around {cutoff} index {lig_atom.index})"):
+                        f"{recept_selection_str} and (around {cutoff / _angstrom} index {lig_atom.index})"):
                     pair_variance_dict[(lig_atom.index, prot_atom.index)] = {}
                     pair_variance_dict[(lig_atom.index, prot_atom.index)]["dists"] = []
 
@@ -1002,7 +1063,7 @@ class RestraintSearch():
             return config_vol
 
 
-        def findOrderedBoresch(u, pair_list, temp, no_pairs=50):
+        def findOrderedBoresch(u, pair_list, temp, force_constant, no_pairs=50):
             """Calculate a list of Boresch restraints and associated 
             statistics over the trajectory.
 
@@ -1019,6 +1080,13 @@ class RestraintSearch():
 
             temp : float
                 The temperature, in K.
+
+            force_constant: BioSimSpace.Types.Energy / BioSimSpace.Types.Area
+                The force constant to use for all restraints. For angles, the units of
+                area will be converted to A-2 and exchanged for rad-2. If None, 
+                the default force constants are used, which are 10 kcal mol-1 A-2 [rad-2] when 
+                method == "MDRestraintsGenerator", or fit to fluctuations observed during
+                the simulation is method == "BSS".
 
             no_pairs : int
                 Number of pairs to be used in the calculation. Pairs in pair_list
@@ -1109,6 +1177,16 @@ class RestraintSearch():
                 force_consts = {dof:boresch_dof_data[pair][dof]["k"] for dof in boresch_dof_list}
                 boresch_dof_data[pair]["config_vol"] = getConfigVol(equil_vals, force_consts, temp)
 
+                # Now, after we've used the fluctuation-derived force constants to calculate the 
+                # configurational volume, set to user-supplied value if specified. 
+                if force_constant:
+                    k = force_constant / (_kcal_per_mol / (_angstrom ** 2)) # Convert to kcal mol-1 A-2,
+                                                                              # and use same value for angle force
+                                                                              # constants in kcal mol-1 rad-2
+                    boresch_dof_data[pair]["r"]["k"] = k
+                    for restrained_angle in ["thetaA", "thetaB", "phiA", "phiB", "phiC"]: # Do not change thetaR, thetaL
+                        boresch_dof_data[pair][restrained_angle]["k"] = k
+
             # Order pairs according to configurational volume - smaller volume indicates stronger
             # restraints mimicking stronger native interactions
             pairs_ordered_boresch_var = []
@@ -1120,14 +1198,14 @@ class RestraintSearch():
             # Convert 10 kT to angle
             R = k_boltz # molar gas constant in kcal mol-1 K-1
             min_stable_dist = lambda k : _np.sqrt((20 * R * temp) / k) # Get the "distance" at which 
-                                                                    # restraint penalty is 10 kT
+                                                                       # restraint penalty is 10 kT
             pairs_ordered_boresch = []
             for pair in pairs_ordered_boresch_var:
                 # Check equil distance
                 r0 = boresch_dof_data[pair]["r"]["avg"]
                 kr = boresch_dof_data[pair]["r"]["k"]
-                if r0 < min_stable_dist(kr):
-                    continue # Don't add anchors due to potential instability
+                stable_distance = r0 > min_stable_dist(kr)
+                stable_angle = True
                 for angle in ["thetaA", "thetaB", "thetaR", "thetaL"]:
                     # Check equil angle
                     ang0 = boresch_dof_data[pair][f"{angle}"]["avg"]
@@ -1135,14 +1213,15 @@ class RestraintSearch():
                     # Check minimum distance to collinearity
                     min_dist = min([abs(ang0 - 0), abs(ang0 - _np.pi)])
                     if min_dist < min_stable_dist(kang):
-                        continue # Don't add anchors due to potential instability
-                # No likely instabilities, add pair
-                pairs_ordered_boresch.append(pair)
+                        stable_angle = False
+                # If no likely instabilities, add pair
+                if stable_distance and stable_angle:
+                    pairs_ordered_boresch.append(pair)
 
             if len(pairs_ordered_boresch) == 0:
                 raise _AnalysisError(
                     "No candidate sets of Boresch restraints are suitable. Please expand "
-                    "search criteria.")
+                    "search criteria or increase force constants.")
             
             return pairs_ordered_boresch, boresch_dof_data
 
@@ -1275,7 +1354,8 @@ class RestraintSearch():
         pairs_ordered_sd = findOrderedPairs(u, lig_selection_str, recept_selection_str, cutoff)
 
         # Convert to Boresch anchors, order by correction, and filter
-        pairs_ordered_boresch, boresch_dof_data = findOrderedBoresch(u, pairs_ordered_sd, temperature.value())
+        pairs_ordered_boresch, boresch_dof_data = findOrderedBoresch(u, pairs_ordered_sd, 
+                                                                    temperature.value(), force_constant)
 
         # Plot
         plotDOF(pairs_ordered_boresch, boresch_dof_data, restraint_idx = restraint_idx)
@@ -1283,4 +1363,4 @@ class RestraintSearch():
         # Convert to BSS compatible dictionary
         restraint = getBoreschRestraint(pairs_ordered_boresch[restraint_idx], boresch_dof_data)
 
-        return restraint  # TODO: implement normal frame - waiting for traj.getFrames() to be fixed.
+        return restraint
