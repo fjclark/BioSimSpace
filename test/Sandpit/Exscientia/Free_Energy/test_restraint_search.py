@@ -141,32 +141,32 @@ class TestBSS_analysis():
     def test_dG_off(self, restraint_search):
         '''Test if the restraint generated has the same energy'''
         restraint, outdir = restraint_search
-        assert np.isclose(-10.088779603214205, restraint.correction.value(), atol=0.01)
+        assert np.isclose(-10.1074, restraint.correction.value(), atol=0.01)
 
     def test_bond(self, restraint_search):
         restraint, outdir = restraint_search
         equilibrium_values_r0 = restraint._restraint_dict['equilibrium_values']['r0'] / nanometer
-        assert np.isclose(0.4987, equilibrium_values_r0, atol=0.001)
+        assert np.isclose(0.5420, equilibrium_values_r0, atol=0.001)
 
     def test_angles(self, restraint_search):
         restraint, outdir = restraint_search
         equilibrium_values_thetaA0 = restraint._restraint_dict['equilibrium_values']['thetaA0'] / degree
-        assert np.isclose(119.3375, equilibrium_values_thetaA0, atol=0.001)
+        assert np.isclose(129.1723, equilibrium_values_thetaA0, atol=0.001)
         equilibrium_values_thetaB0 = restraint._restraint_dict['equilibrium_values']['thetaB0'] / degree
-        assert np.isclose(100.8382, equilibrium_values_thetaB0, atol=0.001)
+        assert np.isclose(64.6300, equilibrium_values_thetaB0, atol=0.001)
 
     def test_dihedrals(self, restraint_search):
         restraint, outdir = restraint_search
         equilibrium_values_phiA0 = restraint._restraint_dict['equilibrium_values']['phiA0'] / degree
-        assert np.isclose(29.19473, equilibrium_values_phiA0, atol=0.001)
+        assert np.isclose(16.43557, equilibrium_values_phiA0, atol=0.001)
         equilibrium_values_phiB0 = restraint._restraint_dict['equilibrium_values']['phiB0'] / degree
-        assert np.isclose(-136.9009, equilibrium_values_phiB0, atol=0.001)
+        assert np.isclose(50.3718, equilibrium_values_phiB0, atol=0.001)
         equilibrium_values_phiC0 = restraint._restraint_dict['equilibrium_values']['phiC0'] / degree
-        assert np.isclose(-102.3908, equilibrium_values_phiC0, atol=0.001)
+        assert np.isclose(101.1527, equilibrium_values_phiC0, atol=0.001)
 
     def test_index(self, restraint_search):
         restraint, outdir = restraint_search
         idxs = {k:restraint._restraint_dict['anchor_points'][k].index() for k \
                 in restraint._restraint_dict['anchor_points']}
         assert idxs == {'r1':1560, 'r2':1558, 'r3':1562,
-                        'l1':8, 'l2':9, 'l3':13}
+                        'l1':9, 'l2':8, 'l3':10}
