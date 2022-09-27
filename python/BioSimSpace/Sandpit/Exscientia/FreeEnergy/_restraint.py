@@ -171,7 +171,6 @@ class Restraint():
                 min_dist = min([abs(equil_val - 0), abs(equil_val - np.pi)])
 
                 if min_dist < min_stable_dist:
-                    print("WARNING")
                     _warnings.warn(f"The equilibrium value of {angle} is within 10 kT of"
                           "collinearity, which may result in unstable Boresch restraints."
                           " Consider increasing the force constants or selecting equilibrium"
