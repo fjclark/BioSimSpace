@@ -29,6 +29,7 @@ from Sire.Units import k_boltz
 from Sire.Units import meter3 as Sire_meter3
 from Sire.Units import angstrom3 as Sire_angstrom3
 from Sire.Units import mole as Sire_mole
+import warnings as _warnings
 
 from .._SireWrappers import Atom
 from ..Types import Length, Angle, Temperature
@@ -144,7 +145,6 @@ class Restraint():
 
             # Test for unstable combinations of force constants
             non_zero_force_const = [i[0] for i in restraint_dict["force_constants"].items() if i[1].value() != 0]
-            print(non_zero_force_const)
             if "kr" not in non_zero_force_const:
                 raise ValueError('"kr" cannot be zero')
             if "kthetaA" not in non_zero_force_const:
@@ -155,6 +155,33 @@ class Restraint():
                 if "kphiB" in non_zero_force_const or "kphiC" in non_zero_force_const:
                     raise ValueError('Restraining phiB or phiC without restraining thetaB '
                                       'will produce unstable Boresch restraints.')
+
+            # Ensure angles are >= 10 kT from collinear
+            R = (k_boltz * kcal_per_mol / kelvin).value() # molar gas constant in kcal mol-1 K-1
+            T = self.T / kelvin # Temperature in Kelvin
+
+            for angle in ["thetaA", "thetaB"]:
+                force_const = restraint_dict["force_constants"][f"k{angle}"] / (kcal_per_mol / (radian * radian))
+                equil_val = restraint_dict["equilibrium_values"][f"{angle}0"] / radian
+
+                # Convert 10 kT to angle
+                R = (k_boltz * kcal_per_mol / kelvin).value() # molar gas constant in kcal mol-1 K-1
+                T = self.T / kelvin # Temperature in Kelvin
+                min_stable_dist = np.sqrt((20 * R * T) / force_const)
+                min_dist = min([abs(equil_val - 0), abs(equil_val - np.pi)])
+
+                print(angle)
+                print(force_const)
+                print(equil_val)
+                print(min_stable_dist)
+                print(min_dist)
+                if min_dist < min_stable_dist:
+                    print("WARNING")
+                    _warnings.warn(f"The equilibrium value of {angle} is within 10 kT of"
+                          "collinearity, which may result in unstable Boresch restraints."
+                          " Consider increasing the force constants or selecting equilibrium"
+                          " values further from 0 or pi radians.")
+
 
         else:
             raise NotImplementedError(f'Restraint type {type} not implemented '
