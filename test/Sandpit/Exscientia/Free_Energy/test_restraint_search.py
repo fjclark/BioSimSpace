@@ -103,49 +103,6 @@ class TestMDRestraintsGenerator_analysis():
         with open(outdir / 'BoreschRestraint.top', 'r') as f:
             assert 'intermolecular_interactions' in f.read()
 
-    # @pytest.mark.xfail()
-    def test_best_frame(self, restraint_search):
-        restraint, outdir = restraint_search
-        assert (outdir / 'ClosestRestraintFrame.gro').is_file()
-        best_frame = mda.Universe(outdir / 'ClosestRestraintFrame.gro')
-        ref_dim = best_frame.dimensions
-        ref_coord = best_frame.atoms[0].position
-        system = restraint.system
-        # TODO: Check if the box dimension and coordiants are correct
-        # Need to wait for BSS to fix the getFrame
-
-    def test_bond(self, restraint_search):
-        restraint, outdir = restraint_search
-        equilibrium_values_r0 = restraint._restraint_dict['equilibrium_values']['r0'] / nanometer
-        assert np.isclose(0.575, equilibrium_values_r0, atol=0.001)
-
-    def test_angles(self, restraint_search):
-        restraint, outdir = restraint_search
-        equilibrium_values_thetaA0 = restraint._restraint_dict['equilibrium_values']['thetaA0'] / degree
-        assert np.isclose(67.319, equilibrium_values_thetaA0, atol=0.001)
-        equilibrium_values_thetaB0 = restraint._restraint_dict['equilibrium_values']['thetaB0'] / degree
-        assert np.isclose(127.802, equilibrium_values_thetaB0, atol=0.001)
-
-    def test_dihedrals(self, restraint_search):
-        restraint, outdir = restraint_search
-        equilibrium_values_phiA0 = restraint._restraint_dict['equilibrium_values']['phiA0'] / degree
-        assert np.isclose(-176.627, equilibrium_values_phiA0, atol=0.001)
-        equilibrium_values_phiB0 = restraint._restraint_dict['equilibrium_values']['phiB0'] / degree
-        assert np.isclose(-69.457, equilibrium_values_phiB0, atol=0.001)
-        equilibrium_values_phiC0 = restraint._restraint_dict['equilibrium_values']['phiC0'] / degree
-        assert np.isclose(-24.517, equilibrium_values_phiC0, atol=0.001)
-
-    def test_index(self, restraint_search):
-        restraint, outdir = restraint_search
-        outstring = restraint.toString('Gromacs')
-        # Ligand index
-        assert ' 2615 ' in outstring
-        assert ' 2610 ' in outstring
-        assert ' 2611 ' in outstring
-        # Protein index
-        assert ' 1337 ' in outstring
-        assert ' 1322 ' in outstring
-        assert ' 1320 ' in outstring
 
 class TestBSS_analysis():
     """Test selection of restraints using the inbuilt BSS method."""
@@ -185,8 +142,6 @@ class TestBSS_analysis():
         '''Test if the restraint generated has the same energy'''
         restraint, outdir = restraint_search
         assert np.isclose(-10.088779603214205, restraint.correction.value(), atol=0.01)
-
-    # TODO: Test best frame when implemented
 
     def test_bond(self, restraint_search):
         restraint, outdir = restraint_search
