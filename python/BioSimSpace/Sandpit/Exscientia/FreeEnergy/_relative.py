@@ -31,10 +31,6 @@ __all__ = ["Relative", "getData"]
 try:
     from alchemlyb.workflows import ABFE
     from alchemlyb.postprocessors.units import R_kJmol, kJ2kcal
-    from alchemlyb.parsing.gmx import extract_u_nk as _gmx_extract_u_nk
-    from alchemlyb.parsing.gmx import extract_dHdl as _gmx_extract_dHdl
-    from alchemlyb.parsing.amber import extract_u_nk as _amber_extract_u_nk
-    from alchemlyb.parsing.amber import extract_dHdl as _amber_extract_dHdl
     from alchemlyb.preprocessing.subsampling import statistical_inefficiency as _statistical_inefficiency
     from alchemlyb.estimators import AutoMBAR as _AutoMBAR
     from alchemlyb.estimators import TI as _TI
@@ -45,7 +41,6 @@ except:
     print('Please install alchemlyb via pip for analysis using it.')
     is_alchemlyb = False
 
-from collections import defaultdict as _defaultdict, OrderedDict as _OrderedDict
 from glob import glob as _glob
 
 import copy as _copy

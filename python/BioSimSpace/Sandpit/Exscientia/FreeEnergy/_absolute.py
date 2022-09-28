@@ -26,60 +26,15 @@ but adds functionality for dealing with receptor-ligand restraints.
 
 __all__ = ["Absolute", "getData"]
 
-try:
-    from alchemlyb.workflows import ABFE
-    from alchemlyb.postprocessors.units import R_kJmol, kJ2kcal
-    from alchemlyb.parsing.gmx import extract_u_nk as _gmx_extract_u_nk
-    from alchemlyb.parsing.gmx import extract_dHdl as _gmx_extract_dHdl
-    from alchemlyb.parsing.amber import extract_u_nk as _amber_extract_u_nk
-    from alchemlyb.parsing.amber import extract_dHdl as _amber_extract_dHdl
-    from alchemlyb.preprocessing.subsampling import statistical_inefficiency as _statistical_inefficiency
-    from alchemlyb.estimators import AutoMBAR as _AutoMBAR
-    from alchemlyb.estimators import TI as _TI
-    from alchemlyb.postprocessors.units import to_kcalmol as _to_kcalmol
-    import alchemlyb as _alchemlyb
-    is_alchemlyb = True
-except:
-    print('Please install alchemlyb via pip for analysis using it.')
-    is_alchemlyb = False
-
-from collections import defaultdict as _defaultdict, OrderedDict as _OrderedDict
-from glob import glob as _glob
-
-import copy as _copy
-import math as _math
-import numpy as _np
 import os as _os
-import pandas as _pd 
-import re as _re
-import shlex as _shlex
-import shutil as _shutil
-import subprocess as _subprocess
 import sys as _sys
-import tempfile as _tempfile
-import warnings as _warnings
-import zipfile as _zipfile
 
 from Sire.Base import getBinDir as _getBinDir
 from Sire.Base import getShareDir as _getShareDir
 
-from .._Exceptions import AnalysisError as _AnalysisError
 from .._Exceptions import MissingSoftwareError as _MissingSoftwareError
-from .._SireWrappers import System as _System
-from .._Utils import cd as _cd
-from .. import _gmx_exe
-from .. import _is_notebook
-from .. import Process as _Process
-from .. import Protocol as _Protocol
 from ._restraint import Restraint as _Restraint
 from ._relative import Relative as _Relative
-from .. import Types as _Types
-from .. import Units as _Units
-
-from ..MD._md import _find_md_engines
-
-if _is_notebook:
-    from IPython.display import FileLink as _FileLink
 
 # Check that the analyse_freenrg script exists.
 if _sys.platform != "win32":

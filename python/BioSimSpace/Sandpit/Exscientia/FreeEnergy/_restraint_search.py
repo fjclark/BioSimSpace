@@ -30,25 +30,8 @@ __email__ = "finlay.clark@ed.ac.uk"
 __all__ = ["RestraintSearch"]
 
 try:
-    import alchemlyb as _alchemlyb
-    from alchemlyb.postprocessors.units import R_kJmol, kJ2kcal
-    from alchemlyb.parsing.gmx import extract_u_nk as _gmx_extract_u_nk
-    from alchemlyb.parsing.gmx import extract_dHdl as _gmx_extract_dHdl
-    from alchemlyb.parsing.amber import extract_u_nk as _amber_extract_u_nk
-    from alchemlyb.parsing.amber import extract_dHdl as _amber_extract_dHdl
-    from alchemlyb.preprocessing.subsampling import statistical_inefficiency as _statistical_inefficiency
-    from alchemlyb.estimators import AutoMBAR as _AutoMBAR
-    from alchemlyb.estimators import TI as _TI
-    from alchemlyb.postprocessors.units import to_kcalmol as _to_kcalmol
-    is_alchemlyb = True
-except:
-    print('Please install alchemlyb via pip for analysis using it.')
-    is_alchemlyb = False
-
-try:
     from MDRestraintsGenerator import search as _search
     from MDRestraintsGenerator.restraints import FindBoreschRestraint as _FindBoreschRestraint
-    import MDRestraintsGenerator
     is_MDRestraintsGenerator = True
 except:
     print('Please install MDRestraintsGenerator for analysis using it.')
@@ -89,7 +72,6 @@ from .. import Protocol as _Protocol
 from .. import Units as _Units
 
 if _is_notebook:
-    from IPython.display import FileLink as _FileLink
     from tqdm.notebook import tqdm 
 else:
     from tqdm import tqdm
