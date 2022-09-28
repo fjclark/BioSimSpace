@@ -1289,7 +1289,8 @@ class RestraintSearch():
                             linestyle='dashed', linewidth=2, label="mean")
                 axs[i].set_xlabel(dof_labels[dof])
                 axs[i].set_ylabel("Num Vals")
-                axs[i].legend()
+                if i == n_dof - 1: # Only add legend to last plot
+                    axs[i].legend()
             fig.tight_layout()
             fig.savefig(f'{work_dir}/restraint_idx{restraint_idx}_dof_hist.png', facecolor="white")
 
@@ -1298,6 +1299,9 @@ class RestraintSearch():
             for i, dof in enumerate(dof_to_plot):
                 axs[i].plot([x for x in range(len(dof_data[label][dof]["values"]))],
                             dof_data[label][dof]["values"])
+                axs[i].axhline(y=dof_data[label][dof]["avg"], color='r',
+                            linestyle='dashed', linewidth=2, label="mean") # No need to add legend as has been 
+                                                                           # added to histograms
                 axs[i].set_ylabel(dof_labels[dof])
                 axs[i].set_xlabel("Frame No")
             fig.tight_layout()
