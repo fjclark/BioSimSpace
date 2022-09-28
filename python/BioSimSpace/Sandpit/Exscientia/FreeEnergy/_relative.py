@@ -29,13 +29,13 @@ __email__ = "lester.hedges@gmail.com"
 __all__ = ["Relative", "getData"]
 
 try:
+    import alchemlyb as _alchemlyb
     from alchemlyb.workflows import ABFE
     from alchemlyb.postprocessors.units import _R_kJmol, _kJ2kcal
     from alchemlyb.preprocessing.subsampling import statistical_inefficiency as _statistical_inefficiency
     from alchemlyb.estimators import AutoMBAR as _AutoMBAR
     from alchemlyb.estimators import TI as _TI
     from alchemlyb.postprocessors.units import to_kcalmol as _to_kcalmol
-    import alchemlyb as _alchemlyb
     is_alchemlyb = True
 except:
     print('Please install alchemlyb via pip for analysis using it.')
