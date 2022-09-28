@@ -176,7 +176,6 @@ class Restraint():
                           " Consider increasing the force constants or selecting equilibrium"
                           " values further from 0 or pi radians.")
 
-
         else:
             raise NotImplementedError(f'Restraint type {type} not implemented '
                                       f'yet. Only boresch restraint is supported.')

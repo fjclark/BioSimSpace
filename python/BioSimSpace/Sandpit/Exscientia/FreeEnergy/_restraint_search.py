@@ -944,16 +944,23 @@ class RestraintSearch():
             return pairs_ordered_sd
 
 
-        def getAnchorAts(a1_idx, u):
+        def getAnchorAts(a1_idx, selection_str, u):
             """Takes in index of anchor atom 1 (in either the receptor or ligand)
             and universe and returns list of all three anchor atoms, which are chosen
-            to be contiguous and not H.
+            to be contiguous and to satisfy the selection string. Only one set of anchor 
+            points is chosen per index so as to search a wider variery of anchor points
+            without dramatically increasing the set of candidate anchor points searched.
 
             Parameters
             ----------
 
             a1_idx : int
                 Index of the first anchor atom
+
+            selection_str : str
+                The selection of atoms from which anchor atoms
+                may be selected. Uses MDAnalysis atom selection
+                language.
 
             u : MDAnalysis.Universe
                 The trajectory for the ABFE restraint calculation as a
@@ -966,19 +973,27 @@ class RestraintSearch():
                 The indices of all three selected anchor atoms to be used in 
                 Boresch restraints.
             """
+            # Get the atoms bonded to the first anchor point which satisfy
+            # selection string
             a1_at = u.atoms[a1_idx]
-            bonded_heavy_at = a1_at.bonded_atoms.select_atoms("not name H*")
-            a2_idx = bonded_heavy_at[0].index
+            bonded_at_a1 = a1_at.bonded_atoms.select_atoms(selection_str)
+            if len(bonded_at_a1) == 0:
+                raise _AnalysisError("Could not find anchor points matching search critera")
 
-            if len(bonded_heavy_at) > 1:
-                # not at end of chain
-                a3_idx = bonded_heavy_at[1].index
-                # Might be better to return all possible combinations
+            # Take the first bonded atom to be the second anchor point
+            a2_idx = bonded_at_a1[0].index
+
+            # Try to take the second atom for the list of those bonded to a2
+            if len(bonded_at_a1) > 1:
+                a3_idx = bonded_at_a1[1].index
+            # Otherwise take from atoms bonded to a2
             else:
-                # at end of chain, get next heavy atom along
-                a3_idx = \
-                bonded_heavy_at[0].bonded_atoms.select_atoms("not name H*")[
-                    0].index
+                bonded_at_a2 = bonded_at_a1[0].bonded_atoms.select_atoms(selection_str)
+                bonded_at_a2 -= a1_at # Ensure we do not select a1 again
+                if len(bonded_at_a2) == 0:
+                    raise _AnalysisError("Could not find anchor points matching search critera")
+                else:
+                    a3_idx = bonded_at_a2[0].index
 
             return a1_idx, a2_idx, a3_idx
 
@@ -1063,7 +1078,8 @@ class RestraintSearch():
             return config_vol
 
 
-        def findOrderedBoresch(u, pair_list, temp, force_constant, no_pairs=50):
+        def findOrderedBoresch(u, lig_selection_str, recept_selection_str,
+                               pair_list, temp, force_constant, no_pairs=50):
             """Calculate a list of Boresch restraints and associated 
             statistics over the trajectory.
 
@@ -1073,6 +1089,14 @@ class RestraintSearch():
             u : MDAnalysis.Universe
                 The trajectory for the ABFE restraint calculation as a
                 MDAnalysis.Universe object.
+
+            lig_selection_str: str
+                The selection string for the atoms in the ligand to consider
+                as potential anchor points.
+
+            recept_selection_str: str
+                The selection string for the protein in the ligand to consider
+                as potential anchor points.
 
             pair_list : List of tuples
                 List of receptor-ligand atom pairs to be used as the r1 and l1
@@ -1114,11 +1138,13 @@ class RestraintSearch():
             for pair in tqdm(pair_list[:no_pairs], desc="Scoring candidate Boresch anchor points. Anchor set no: "):
                 boresch_dof_data[pair] = {}
                 l1_idx, r1_idx = pair
-                _, l2_idx, l3_idx = getAnchorAts(l1_idx, u)
-                _, r2_idx, r3_idx = getAnchorAts(r1_idx, u)
+                try:
+                    _, l2_idx, l3_idx = getAnchorAts(l1_idx, lig_selection_str, u)
+                    _, r2_idx, r3_idx = getAnchorAts(r1_idx, recept_selection_str, u)
+                except _AnalysisError: # Failed to find full set of anchor points for this pair
+                    continue
                 boresch_dof_data[pair]["anchor_ats"] = [l1_idx, l2_idx, l3_idx,
                                                         r1_idx, r2_idx, r3_idx]
-
 
                 # Add sub dictionaries for each Boresch degree of freedom
                 for dof in boresch_dof_list:
@@ -1354,8 +1380,9 @@ class RestraintSearch():
         pairs_ordered_sd = findOrderedPairs(u, lig_selection_str, recept_selection_str, cutoff)
 
         # Convert to Boresch anchors, order by correction, and filter
-        pairs_ordered_boresch, boresch_dof_data = findOrderedBoresch(u, pairs_ordered_sd, 
-                                                                    temperature.value(), force_constant)
+        pairs_ordered_boresch, boresch_dof_data = findOrderedBoresch(u,lig_selection_str, recept_selection_str,
+                                                                    pairs_ordered_sd, temperature.value(),
+                                                                    force_constant)
 
         # Plot
         plotDOF(pairs_ordered_boresch, boresch_dof_data, restraint_idx = restraint_idx)
