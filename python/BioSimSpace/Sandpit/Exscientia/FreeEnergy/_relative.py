@@ -28,18 +28,6 @@ __email__ = "lester.hedges@gmail.com"
 
 __all__ = ["Relative", "getData"]
 
-try:
-    import alchemlyb as _alchemlyb
-    from alchemlyb.workflows import ABFE
-    from alchemlyb.postprocessors.units import _R_kJmol, _kJ2kcal
-    from alchemlyb.preprocessing.subsampling import statistical_inefficiency as _statistical_inefficiency
-    from alchemlyb.estimators import AutoMBAR as _AutoMBAR
-    from alchemlyb.estimators import TI as _TI
-    from alchemlyb.postprocessors.units import to_kcalmol as _to_kcalmol
-    is_alchemlyb = True
-except:
-    print('Please install alchemlyb via pip for analysis using it.')
-    is_alchemlyb = False
 
 from glob import glob as _glob
 
@@ -55,6 +43,18 @@ import sys as _sys
 import tempfile as _tempfile
 import warnings as _warnings
 import zipfile as _zipfile
+
+try:
+    from alchemlyb.workflows import ABFE
+    from alchemlyb.postprocessors.units import _R_kJmol, _kJ2kcal
+    from alchemlyb.preprocessing.subsampling import statistical_inefficiency as _statistical_inefficiency
+    from alchemlyb.estimators import AutoMBAR as _AutoMBAR
+    from alchemlyb.estimators import TI as _TI
+    from alchemlyb.postprocessors.units import to_kcalmol as _to_kcalmol
+    is_alchemlyb = True
+except:
+    print('Please install alchemlyb via pip for analysis using it.')
+    is_alchemlyb = False
 
 from Sire.Base import getBinDir as _getBinDir
 from Sire.Base import getShareDir as _getShareDir
