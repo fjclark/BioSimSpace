@@ -46,7 +46,8 @@ import zipfile as _zipfile
 
 try:
     from alchemlyb.workflows import ABFE
-    from alchemlyb.postprocessors.units import _R_kJmol, _kJ2kcal
+    from alchemlyb.postprocessors.units import R_kJmol as _R_kJmol
+    from alchemlyb.postprocessors.units import kJ2kcal as _kJ2kcal
     from alchemlyb.preprocessing.subsampling import statistical_inefficiency as _statistical_inefficiency
     from alchemlyb.estimators import AutoMBAR as _AutoMBAR
     from alchemlyb.estimators import TI as _TI
