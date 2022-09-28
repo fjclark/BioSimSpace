@@ -1,9 +1,9 @@
+import pytest
+
 from Sire.MM import InternalFF, IntraCLJFF, IntraFF
 from Sire.Mol import AtomIdx, PartialMolecule
 
 import BioSimSpace.Sandpit.Exscientia as BSS
-
-import pytest
 
 # Parameterise the function with a set of valid atom pre-matches.
 @pytest.mark.parametrize("prematch", [{3 : 1},

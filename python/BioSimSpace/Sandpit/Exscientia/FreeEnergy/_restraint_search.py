@@ -29,24 +29,6 @@ __email__ = "finlay.clark@ed.ac.uk"
 
 __all__ = ["RestraintSearch"]
 
-import sys as _sys
-import os as _os
-import tempfile as _tempfile
-import warnings as _warnings
-
-# Import tqdm for progress bars for BSS restraints derivation. 
-# The import needs to be different depending on
-# whether we are running in a notebook or not
-
-try:
-    shell = get_ipython().__class__.__name__
-    if shell == 'ZMQInteractiveShell': # This is a notebook
-        from tqdm.notebook import tqdm 
-    else:
-        from tqdm import tqdm
-except NameError: # Import progress bars to work in terminal
-    from tqdm import tqdm
-
 try:
     import alchemlyb as _alchemlyb
     from alchemlyb.postprocessors.units import R_kJmol, kJ2kcal
@@ -64,48 +46,53 @@ except:
     is_alchemlyb = False
 
 try:
-    import MDRestraintsGenerator
     from MDRestraintsGenerator import search as _search
     from MDRestraintsGenerator.restraints import FindBoreschRestraint as _FindBoreschRestraint
+    import MDRestraintsGenerator
     is_MDRestraintsGenerator = True
 except:
     print('Please install MDRestraintsGenerator for analysis using it.')
     is_MDRestraintsGenerator = False
 
-import numpy as _np
-import MDAnalysis as _mda 
 from MDAnalysis.analysis.distances import dist as _dist
 from MDAnalysis.lib.distances import calc_angles as _calc_angles
 from MDAnalysis.lib.distances import calc_dihedrals as _calc_dihedrals
 from scipy.stats import circmean as _circmean
 import matplotlib.pyplot as _plt
+import MDAnalysis as _mda 
+import numpy as _np
+import os as _os
+import sys as _sys
+import tempfile as _tempfile
+import warnings as _warnings
 
 from Sire.Base import getBinDir as _getBinDir
 from Sire.Base import getShareDir as _getShareDir
 from Sire.Units import k_boltz # kcal / (mol K)
 
-from .. import _gmx_exe
-from .. import _is_notebook
 from .._Exceptions import AnalysisError as _AnalysisError
 from .._Exceptions import MissingSoftwareError as _MissingSoftwareError
+from ..MD._md import _find_md_engines
+from ._restraint import Restraint
 from .._SireWrappers import System as _System
 from ..Trajectory._trajectory import Trajectory as _Trajectory
-from .. import Process as _Process
-from .. import Protocol as _Protocol
 from ..Types import Length as _Length
 from ..Types import Temperature as _Temperature
-from .. import Units as _Units
-from ..Units.Length import angstrom as _angstrom
-from ..Units.Angle import radian as _radian
 from ..Units.Angle import degree as _degree
+from ..Units.Angle import radian as _radian
 from ..Units.Energy import kcal_per_mol as _kcal_per_mol
-
-from ..MD._md import _find_md_engines
+from ..Units.Length import angstrom as _angstrom
+from .. import _gmx_exe
+from .. import _is_notebook
+from .. import Process as _Process
+from .. import Protocol as _Protocol
+from .. import Units as _Units
 
 if _is_notebook:
     from IPython.display import FileLink as _FileLink
-
-from ._restraint import Restraint
+    from tqdm.notebook import tqdm 
+else:
+    from tqdm import tqdm
 
 # Check that the analyse_freenrg script exists.
 if _sys.platform != "win32":

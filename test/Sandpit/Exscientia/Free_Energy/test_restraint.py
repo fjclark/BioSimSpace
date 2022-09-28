@@ -1,14 +1,13 @@
+import numpy as np
 import pytest
 
-import numpy as np
-
-import BioSimSpace.Sandpit.Exscientia as BSS
 from BioSimSpace.Sandpit.Exscientia.Align import decouple
 from BioSimSpace.Sandpit.Exscientia.FreeEnergy import Restraint
 from BioSimSpace.Sandpit.Exscientia.Units.Length import angstrom
 from BioSimSpace.Sandpit.Exscientia.Units.Angle import radian, degree
 from BioSimSpace.Sandpit.Exscientia.Units.Energy import kcal_per_mol
 from BioSimSpace.Sandpit.Exscientia.Units.Temperature import kelvin
+import BioSimSpace.Sandpit.Exscientia as BSS
 
 @pytest.fixture(scope='module')
 def restraint():

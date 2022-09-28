@@ -1,14 +1,13 @@
-import pytest
-
 import MDAnalysis as mda
 import numpy as np
+import pytest
 
-import BioSimSpace.Sandpit.Exscientia as BSS
 from BioSimSpace.Sandpit.Exscientia.Align import decouple
 from BioSimSpace.Sandpit.Exscientia.FreeEnergy import RestraintSearch, Restraint
 from BioSimSpace.Sandpit.Exscientia.Trajectory import Trajectory
 from BioSimSpace.Sandpit.Exscientia.Units.Length import nanometer
 from BioSimSpace.Sandpit.Exscientia.Units.Angle import degree
+import BioSimSpace.Sandpit.Exscientia as BSS
 
 @pytest.fixture(scope="module")
 def setup_system():

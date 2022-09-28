@@ -22,24 +22,24 @@
 """
 A class for holding restraints.
 """
-
-import numpy as np
 from scipy import integrate as _integrate
-from Sire.Units import k_boltz
-from Sire.Units import meter3 as Sire_meter3
-from Sire.Units import angstrom3 as Sire_angstrom3
-from Sire.Units import mole as Sire_mole
+import numpy as np
 import warnings as _warnings
 
+from Sire.Units import angstrom3 as Sire_angstrom3
+from Sire.Units import k_boltz
+from Sire.Units import meter3 as Sire_meter3
+from Sire.Units import mole as Sire_mole
+
 from .._SireWrappers import Atom
-from ..Types import Length, Angle, Temperature
 from .._SireWrappers import System as _System
-from ..Units.Length import nanometer
-from ..Units.Length import angstrom
-from ..Units.Area import angstrom2
-from ..Units.Temperature import kelvin
+from ..Types import Length, Angle, Temperature
 from ..Units.Angle import degree, radian
+from ..Units.Area import angstrom2
 from ..Units.Energy import kj_per_mol, kcal_per_mol
+from ..Units.Length import angstrom
+from ..Units.Length import nanometer
+from ..Units.Temperature import kelvin
 
 class Restraint():
     '''The Restraint class which holds the restraint information for the ABFE

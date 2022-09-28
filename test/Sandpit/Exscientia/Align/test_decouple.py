@@ -1,10 +1,11 @@
 import pytest
 
-import BioSimSpace.Sandpit.Exscientia as BSS
-from BioSimSpace.Sandpit.Exscientia.Align._decouple import decouple
-from Sire import Units as _SireUnits
 from Sire import Mol as _SireMol
 from Sire import MM as _SireMM
+from Sire import Units as _SireUnits
+
+from BioSimSpace.Sandpit.Exscientia.Align._decouple import decouple
+import BioSimSpace.Sandpit.Exscientia as BSS
 
 @pytest.fixture()
 def mol():

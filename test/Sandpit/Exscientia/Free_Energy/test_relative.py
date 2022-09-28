@@ -1,9 +1,3 @@
-import pathlib
-
-import pytest
-import pandas as pd
-import numpy as np
-import bz2
 try:
     from alchemlyb.parsing.gmx import extract_u_nk
     is_alchemlyb = True
@@ -17,10 +11,16 @@ try:
 except ModuleNotFoundError:
     is_alchemtest = False
 
-import BioSimSpace.Sandpit.Exscientia as BSS
-from BioSimSpace.Sandpit.Exscientia.Protocol import FreeEnergyEquilibration
+import bz2
+import numpy as np
+import pandas as pd
+import pathlib
+import pytest
+
 from BioSimSpace.Sandpit.Exscientia.Align._decouple import decouple
+from BioSimSpace.Sandpit.Exscientia.Protocol import FreeEnergyEquilibration
 from BioSimSpace.Sandpit.Exscientia import Types as _Types
+import BioSimSpace.Sandpit.Exscientia as BSS
 
 # Make sure GROMSCS is installed.
 has_gromacs = BSS._gmx_exe is not None

@@ -1,12 +1,10 @@
-import warnings
-
 from Sire import Base as _SireBase
-from Sire import Units as _SireUnits
 from Sire import Mol as _SireMol
 from Sire import MM as _SireMM
+from Sire import Units as _SireUnits
 
-from .._SireWrappers import Molecule as _Molecule
 from .._Exceptions import IncompatibleError as _IncompatibleError
+from .._SireWrappers import Molecule as _Molecule
 
 __all__ = ["decouple"]
 

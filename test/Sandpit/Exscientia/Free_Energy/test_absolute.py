@@ -1,24 +1,23 @@
-import pathlib
-
-import time
-import pytest
-import pandas as pd
-import numpy as np
 try:
     from alchemlyb.parsing.gmx import extract_u_nk
     is_alchemlyb = True
 except ModuleNotFoundError:
     is_alchemlyb = False
 
-import BioSimSpace.Sandpit.Exscientia as BSS
-from BioSimSpace.Sandpit.Exscientia.Protocol import FreeEnergyEquilibration, FreeEnergy
+import numpy as np
+import pandas as pd
+import pathlib
+import pytest
+
 from BioSimSpace.Sandpit.Exscientia.Align._decouple import decouple
-from BioSimSpace.Sandpit.Exscientia import Types as _Types
-from BioSimSpace.Sandpit.Exscientia.Units.Length import angstrom
+from BioSimSpace.Sandpit.Exscientia.FreeEnergy import Restraint
+from BioSimSpace.Sandpit.Exscientia.Protocol import FreeEnergyEquilibration
 from BioSimSpace.Sandpit.Exscientia.Units.Angle import radian, degree
 from BioSimSpace.Sandpit.Exscientia.Units.Energy import kcal_per_mol
+from BioSimSpace.Sandpit.Exscientia.Units.Length import angstrom
 from BioSimSpace.Sandpit.Exscientia.Units.Temperature import kelvin
-from BioSimSpace.Sandpit.Exscientia.FreeEnergy import Restraint
+from BioSimSpace.Sandpit.Exscientia import Types as _Types
+import BioSimSpace.Sandpit.Exscientia as BSS
 
 
 # Make sure GROMSCS is installed.
