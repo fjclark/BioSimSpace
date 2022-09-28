@@ -23,23 +23,27 @@
 A class for holding restraints.
 """
 from scipy import integrate as _integrate
-import numpy as np
+import numpy as _np
 import warnings as _warnings
 
-from Sire.Units import angstrom3 as Sire_angstrom3
-from Sire.Units import k_boltz
-from Sire.Units import meter3 as Sire_meter3
-from Sire.Units import mole as Sire_mole
+from Sire.Units import angstrom3 as _Sire_angstrom3
+from Sire.Units import k_boltz as _k_boltz
+from Sire.Units import meter3 as _Sire_meter3
+from Sire.Units import mole as _Sire_mole
 
-from .._SireWrappers import Atom
+from .._SireWrappers import Atom as _Atom
 from .._SireWrappers import System as _System
-from ..Types import Length, Angle, Temperature
-from ..Units.Angle import degree, radian
-from ..Units.Area import angstrom2
-from ..Units.Energy import kj_per_mol, kcal_per_mol
-from ..Units.Length import angstrom
-from ..Units.Length import nanometer
-from ..Units.Temperature import kelvin
+from ..Types import Angle as _Angle
+from ..Types import Length as _Length
+from ..Types import Temperature as _Temperature
+from ..Units.Angle import degree as _degree
+from ..Units.Angle import radian as _radian
+from ..Units.Area import angstrom2 as _angstrom2
+from ..Units.Energy import kcal_per_mol as _kcal_per_mol
+from ..Units.Energy import kj_per_mol as _kj_per_mol
+from ..Units.Length import angstrom as _angstrom
+from ..Units.Length import nanometer as _nanometer
+from ..Units.Temperature import kelvin as _kelvin
 
 class Restraint():
     '''The Restraint class which holds the restraint information for the ABFE
@@ -97,7 +101,7 @@ class Restraint():
            rest_type : str
                The type of the restraint. (`Boresch`, )
         """
-        if not isinstance(temperature, Temperature):
+        if not isinstance(temperature, _Temperature):
             raise ValueError(
                 "temperature must be of type 'BioSimSpace.Types.Temperature'")
         else:
@@ -107,21 +111,21 @@ class Restraint():
             self._rest_type = 'boresch'
             # Test if the atoms are of BioSimSpace._SireWrappers.Atom
             for key in ['r3', 'r2', 'r1', 'l1', 'l2', 'l3']:
-                if not isinstance(restraint_dict['anchor_points'][key], Atom):
+                if not isinstance(restraint_dict['anchor_points'][key], _Atom):
                     raise ValueError(f"restraint_dict['anchor_points']['{key}'] "
                                      f"must be of type "
                                      f"'BioSimSpace._SireWrappers.Atom'")
 
             # Test if the equilibrium length of the bond r1-l1 is a length unit
             # Such as angstrom or nanometer
-            if not isinstance(restraint_dict['equilibrium_values']['r0'], Length):
+            if not isinstance(restraint_dict['equilibrium_values']['r0'], _Length):
                 raise ValueError(
                     "restraint_dict['equilibrium_values']['r0'] must be of type 'BioSimSpace.Types.Length'")
 
             # Test if the equilibrium length of the angle and dihedral is a
             # angle unit such as radian or degree
             for key in ["thetaA0", "thetaB0", "phiA0", "phiB0", "phiC0"]:
-                if not isinstance(restraint_dict['equilibrium_values'][key], Angle):
+                if not isinstance(restraint_dict['equilibrium_values'][key], _Angle):
                     raise ValueError(
                         f"restraint_dict['equilibrium_values']['{key}'] must be "
                         f"of type 'BioSimSpace.Types.Angle'")
@@ -157,18 +161,18 @@ class Restraint():
                                       'will produce unstable Boresch restraints.')
 
             # Ensure angles are >= 10 kT from collinear
-            R = (k_boltz * kcal_per_mol / kelvin).value() # molar gas constant in kcal mol-1 K-1
-            T = self.T / kelvin # Temperature in Kelvin
+            R = (_k_boltz * _kcal_per_mol / _kelvin).value() # molar gas constant in kcal mol-1 K-1
+            T = self.T / _kelvin # Temperature in Kelvin
 
             for angle in ["thetaA", "thetaB"]:
-                force_const = restraint_dict["force_constants"][f"k{angle}"] / (kcal_per_mol / (radian * radian))
-                equil_val = restraint_dict["equilibrium_values"][f"{angle}0"] / radian
+                force_const = restraint_dict["force_constants"][f"k{angle}"] / (_kcal_per_mol / (_radian * _radian))
+                equil_val = restraint_dict["equilibrium_values"][f"{angle}0"] / _radian
 
                 # Convert 10 kT to angle
-                R = (k_boltz * kcal_per_mol / kelvin).value() # molar gas constant in kcal mol-1 K-1
-                T = self.T / kelvin # Temperature in Kelvin
-                min_stable_dist = np.sqrt((20 * R * T) / force_const)
-                min_dist = min([abs(equil_val - 0), abs(equil_val - np.pi)])
+                R = (_k_boltz * _kcal_per_mol / _kelvin).value() # molar gas constant in kcal mol-1 K-1
+                T = self.T / _kelvin # Temperature in Kelvin
+                min_stable_dist = _np.sqrt((20 * R * T) / force_const)
+                min_dist = min([abs(equil_val - 0), abs(equil_val - _np.pi)])
 
                 if min_dist < min_stable_dist:
                     _warnings.warn(f"The equilibrium value of {angle} is within 10 kT of"
@@ -237,10 +241,10 @@ class Restraint():
         def format_bond(equilibrium_values, force_constants):
             converted_equ_val = \
                 self._restraint_dict['equilibrium_values'][
-                    equilibrium_values] / nanometer
+                    equilibrium_values] / _nanometer
             converted_fc = \
                 self._restraint_dict['force_constants'][force_constants] / (
-                            kj_per_mol / nanometer ** 2)
+                            _kj_per_mol / _nanometer ** 2)
             return parameters_string.format(
                 eq0='{:.3f}'.format(converted_equ_val),
                 fc0='{:.2f}'.format(0),
@@ -252,10 +256,10 @@ class Restraint():
         def format_angle(equilibrium_values, force_constants):
             converted_equ_val = \
                 self._restraint_dict['equilibrium_values'][
-                    equilibrium_values] / degree
+                    equilibrium_values] / _degree
             converted_fc = \
                 self._restraint_dict['force_constants'][force_constants] / (
-                            kj_per_mol / (radian * radian))
+                            _kj_per_mol / (_radian * _radian))
             return parameters_string.format(
                 eq0='{:.3f}'.format(converted_equ_val),
                 fc0='{:.2f}'.format(0),
@@ -336,19 +340,19 @@ class Restraint():
         l2 = self._system.getIndex(self._restraint_dict['anchor_points']['l2']) 
         l3 = self._system.getIndex(self._restraint_dict['anchor_points']['l3']) 
         # Equilibrium values
-        r0 = (self._restraint_dict['equilibrium_values']['r0']/angstrom)
-        thetaA0 = (self._restraint_dict['equilibrium_values']['thetaA0']/radian)
-        thetaB0 = (self._restraint_dict['equilibrium_values']['thetaB0']/radian)
-        phiA0 = (self._restraint_dict['equilibrium_values']['phiA0']/radian)
-        phiB0 = (self._restraint_dict['equilibrium_values']['phiB0']/radian)
-        phiC0 = (self._restraint_dict['equilibrium_values']['phiC0']/radian)
+        r0 = (self._restraint_dict['equilibrium_values']['r0']/_angstrom)
+        thetaA0 = (self._restraint_dict['equilibrium_values']['thetaA0']/_radian)
+        thetaB0 = (self._restraint_dict['equilibrium_values']['thetaB0']/_radian)
+        phiA0 = (self._restraint_dict['equilibrium_values']['phiA0']/_radian)
+        phiB0 = (self._restraint_dict['equilibrium_values']['phiB0']/_radian)
+        phiC0 = (self._restraint_dict['equilibrium_values']['phiC0']/_radian)
         # Force constants. Halve these as SOMD defines force constants as E = kx**2
-        kr = (self._restraint_dict['force_constants']['kr']/(kcal_per_mol / (angstrom*angstrom)))/2
-        kthetaA = (self._restraint_dict['force_constants']['kthetaA']/(kcal_per_mol / (radian*radian)))/2
-        kthetaB = (self._restraint_dict['force_constants']['kthetaB']/(kcal_per_mol / (radian*radian)))/2
-        kphiA = (self._restraint_dict['force_constants']['kphiA']/(kcal_per_mol / (radian*radian)))/2
-        kphiB = (self._restraint_dict['force_constants']['kphiB']/(kcal_per_mol / (radian*radian)))/2
-        kphiC = (self._restraint_dict['force_constants']['kphiC']/(kcal_per_mol / (radian*radian)))/2
+        kr = (self._restraint_dict['force_constants']['kr']/(_kcal_per_mol / (_angstrom*_angstrom)))/2
+        kthetaA = (self._restraint_dict['force_constants']['kthetaA']/(_kcal_per_mol / (_radian*_radian)))/2
+        kthetaB = (self._restraint_dict['force_constants']['kthetaB']/(_kcal_per_mol / (_radian*_radian)))/2
+        kphiA = (self._restraint_dict['force_constants']['kphiA']/(_kcal_per_mol / (_radian*_radian)))/2
+        kphiB = (self._restraint_dict['force_constants']['kphiB']/(_kcal_per_mol / (_radian*_radian)))/2
+        kphiC = (self._restraint_dict['force_constants']['kphiC']/(_kcal_per_mol / (_radian*_radian)))/2
 
         restr_string = f'boresch restraints dictionary = {{"anchor_points":{{"r1":{r1}, "r2":{r2}, "r3":{r3}, "l1":{l1}, '
         restr_string += f'"l2":{l2}, "l3":{l3}}}, '
@@ -410,12 +414,12 @@ class Restraint():
         if self._rest_type == 'boresch':
 
             # Constants. Take .value() to avoid issues with ** and log of GeneralUnit
-            v0 = (((Sire_meter3 / 1000 ) / Sire_mole) / Sire_angstrom3).value() # standard state volume in A^3
-            R = (k_boltz * kcal_per_mol / kelvin).value() # molar gas constant in kcal mol-1 K-1
+            v0 = (((_Sire_meter3 / 1000 ) / _Sire_mole) / _Sire_angstrom3).value() # standard state volume in A^3
+            R = (_k_boltz * _kcal_per_mol / _kelvin).value() # molar gas constant in kcal mol-1 K-1
             
             # Parameters
-            T = self.T / kelvin # Temperature in Kelvin
-            prefactor = 8 * (np.pi ** 2) * v0 # In A^3. Divide this to account for force constants of 0 in the 
+            T = self.T / _kelvin # Temperature in Kelvin
+            prefactor = 8 * (_np.pi ** 2) * v0 # In A^3. Divide this to account for force constants of 0 in the 
                                               # analytical correction
 
             if method == "semi-analytical":
@@ -441,7 +445,7 @@ class Restraint():
                     ----------
                         float : Value of integrand
                     """
-                    return (r ** 2) * np.exp(-(kr * (r - r0) ** 2) / (2 * R * T))
+                    return (r ** 2) * _np.exp(-(kr * (r - r0) ** 2) / (2 * R * T))
 
 
                 def numerical_angle_integrand(theta, theta0, ktheta):
@@ -460,7 +464,7 @@ class Restraint():
                     ----------
                         float: Value of integrand
                     """
-                    return np.sin(theta) * np.exp(-(ktheta * (theta - theta0) ** 2) / (2 * R * T))
+                    return _np.sin(theta) * _np.exp(-(ktheta * (theta - theta0) ** 2) / (2 * R * T))
 
 
                 def numerical_dihedral_integrand(phi, phi0, kphi):
@@ -480,13 +484,13 @@ class Restraint():
                         float: Value of integrand
                     """
                     d_phi = abs(phi - phi0)
-                    d_phi_corrected = min(d_phi, 2 * np.pi - d_phi) # correct for periodic boundaries
-                    return np.exp(-(kphi * d_phi_corrected ** 2) / (2 * R * T))
+                    d_phi_corrected = min(d_phi, 2 * _np.pi - d_phi) # correct for periodic boundaries
+                    return _np.exp(-(kphi * d_phi_corrected ** 2) / (2 * R * T))
 
                 # Radial
-                r0 = self._restraint_dict['equilibrium_values']['r0'] / angstrom # A
-                kr = self._restraint_dict['force_constants']['kr'] / (kcal_per_mol / angstrom2) # kcal mol-1 A-2
-                dist_at_8RT = 4 * np.sqrt((R * T) / kr) # Dist. which gives restraint energy = 8 RT
+                r0 = self._restraint_dict['equilibrium_values']['r0'] / _angstrom # A
+                kr = self._restraint_dict['force_constants']['kr'] / (_kcal_per_mol / _angstrom2) # kcal mol-1 A-2
+                dist_at_8RT = 4 * _np.sqrt((R * T) / kr) # Dist. which gives restraint energy = 8 RT
                 r_min = max(0, r0 - dist_at_8RT)
                 r_max = r0 + dist_at_8RT
                 integrand = lambda r: numerical_distance_integrand(r, r0, kr)
@@ -494,30 +498,30 @@ class Restraint():
 
                 # Angular
                 for angle in ["thetaA", "thetaB"]:
-                    theta0 = self._restraint_dict["equilibrium_values"][f"{angle}0"] / radian # rad
-                    ktheta = self._restraint_dict["force_constants"][f"k{angle}"] / (kcal_per_mol / (radian * radian)) # kcal mol-1 rad-2
+                    theta0 = self._restraint_dict["equilibrium_values"][f"{angle}0"] / _radian # rad
+                    ktheta = self._restraint_dict["force_constants"][f"k{angle}"] / (_kcal_per_mol / (_radian * _radian)) # kcal mol-1 rad-2
                     integrand = lambda theta: numerical_angle_integrand(theta, theta0, ktheta)
-                    z_r *= _integrate.quad(integrand, 0, np.pi)[0]
+                    z_r *= _integrate.quad(integrand, 0, _np.pi)[0]
 
                 # Dihedral
                 for dihedral in ["phiA", "phiB", "phiC"]:
-                    phi0 = self._restraint_dict["equilibrium_values"][f"{dihedral}0"] / radian # rad
-                    kphi = self._restraint_dict["force_constants"][f"k{dihedral}"] / (kcal_per_mol / (radian * radian)) # kcal mol-1 rad-2
+                    phi0 = self._restraint_dict["equilibrium_values"][f"{dihedral}0"] / _radian # rad
+                    kphi = self._restraint_dict["force_constants"][f"k{dihedral}"] / (_kcal_per_mol / (_radian * _radian)) # kcal mol-1 rad-2
                     integrand = lambda phi: numerical_dihedral_integrand(phi, phi0, kphi)
-                    z_r *= _integrate.quad(integrand, -np.pi, np.pi)[0]
+                    z_r *= _integrate.quad(integrand, -_np.pi, _np.pi)[0]
 
                 # Compute dg and attach unit
-                dg = -R * T * np.log(prefactor / z_r)
-                dg *= kcal_per_mol
+                dg = -R * T * _np.log(prefactor / z_r)
+                dg *= _kcal_per_mol
 
                 return dg
 
 
             elif method == "analytical":
                 # Only need three equilibrium values for the analytical correction
-                r0 = self._restraint_dict['equilibrium_values']['r0'] / angstrom # Distance in A
-                thetaA0 = self._restraint_dict['equilibrium_values']['thetaA0'] / radian # Angle in radians
-                thetaB0 = self._restraint_dict['equilibrium_values']['thetaB0'] / radian  # Angle in radians
+                r0 = self._restraint_dict['equilibrium_values']['r0'] / _angstrom # Distance in A
+                thetaA0 = self._restraint_dict['equilibrium_values']['thetaA0'] / _radian # Angle in radians
+                thetaB0 = self._restraint_dict['equilibrium_values']['thetaB0'] / _radian  # Angle in radians
 
                 force_constants = []
 
@@ -532,26 +536,26 @@ class Restraint():
                         if k == "kr":
                             raise ValueError("The force constant kr must not be zero")
                         if k == "kthetaA":
-                            prefactor /= 2 / np.sin(thetaA0)
+                            prefactor /= 2 / _np.sin(thetaA0)
                         if k == "kthetaB":
-                            prefactor /= 2 / np.sin(thetaB0)
+                            prefactor /= 2 / _np.sin(thetaB0)
                         if k[:4] == "kphi":
-                            prefactor /= 2 * np.pi
+                            prefactor /= 2 * _np.pi
                     else:
                         if k == "kr":
-                            force_constants.append(val / (kcal_per_mol / angstrom2))
+                            force_constants.append(val / (_kcal_per_mol / _angstrom2))
                         else:
-                            force_constants.append(val / (kcal_per_mol / (radian * radian)))
+                            force_constants.append(val / (_kcal_per_mol / (_radian * _radian)))
 
                 # Calculation
                 n_nonzero_k = len(force_constants)
-                prod_force_constants = np.prod(force_constants)
-                numerator = prefactor * np.sqrt(prod_force_constants)
-                denominator = (r0 ** 2) * np.sin(thetaA0) * np.sin(thetaB0) * (2 * np.pi * R * T) ** (n_nonzero_k / 2)
+                prod_force_constants = _np.prod(force_constants)
+                numerator = prefactor * _np.sqrt(prod_force_constants)
+                denominator = (r0 ** 2) * _np.sin(thetaA0) * _np.sin(thetaB0) * (2 * _np.pi * R * T) ** (n_nonzero_k / 2)
 
                 # Compute dg and attach unit
-                dg = - R * T * np.log(numerator / denominator)
-                dg *= kcal_per_mol
+                dg = - R * T * _np.log(numerator / denominator)
+                dg *= _kcal_per_mol
 
                 return dg
 

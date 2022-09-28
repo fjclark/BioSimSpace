@@ -30,7 +30,7 @@ __all__ = ["Relative", "getData"]
 
 try:
     from alchemlyb.workflows import ABFE
-    from alchemlyb.postprocessors.units import R_kJmol, kJ2kcal
+    from alchemlyb.postprocessors.units import _R_kJmol, _kJ2kcal
     from alchemlyb.preprocessing.subsampling import statistical_inefficiency as _statistical_inefficiency
     from alchemlyb.estimators import AutoMBAR as _AutoMBAR
     from alchemlyb.estimators import TI as _TI
@@ -48,7 +48,6 @@ import math as _math
 import numpy as _np
 import os as _os
 import pandas as _pd 
-import re as _re
 import shlex as _shlex
 import shutil as _shutil
 import subprocess as _subprocess
@@ -672,7 +671,7 @@ class Relative():
 
                 # # beta vale for calc kT - not needed as already reduced in simfile.dat
                 # T = T
-                # k_b = R_kJmol # * kJ2kcal ??
+                # k_b = _R_kJmol # * _kJ2kcal ??
                 # beta = 1/(k_b * T)
 
                 # find out which lambda window
@@ -768,7 +767,7 @@ class Relative():
 
                 # for dhdl need to consider the T, as the gradient is in kcal/mol in the simfile.dat
                 T = 300
-                k_b = R_kJmol * kJ2kcal
+                k_b = _R_kJmol * _kJ2kcal
                 beta = 1/(k_b * T)
 
                 found_lambda = False

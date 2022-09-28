@@ -51,12 +51,12 @@ import warnings as _warnings
 
 from Sire.Base import getBinDir as _getBinDir
 from Sire.Base import getShareDir as _getShareDir
-from Sire.Units import k_boltz # kcal / (mol K)
+from Sire.Units import k_boltz as _k_boltz # kcal / (mol K)
 
 from .._Exceptions import AnalysisError as _AnalysisError
 from .._Exceptions import MissingSoftwareError as _MissingSoftwareError
 from ..MD._md import _find_md_engines
-from ._restraint import Restraint
+from ._restraint import Restraint as _Restraint
 from .._SireWrappers import System as _System
 from ..Trajectory._trajectory import Trajectory as _Trajectory
 from ..Types import Length as _Length
@@ -72,9 +72,9 @@ from .. import Protocol as _Protocol
 from .. import Units as _Units
 
 if _is_notebook:
-    from tqdm.notebook import tqdm 
+    from tqdm.notebook import tqdm as _tqdm 
 else:
-    from tqdm import tqdm
+    from tqdm import tqdm as _tqdm
 
 # Check that the analyse_freenrg script exists.
 if _sys.platform != "win32":
@@ -770,7 +770,7 @@ class RestraintSearch():
         # Waiting for the BSS to fix the getFrames
         # best_frame = traj.getFrames(index)
         best_frame = system
-        restraint = Restraint(best_frame, restraint_dict,
+        restraint = _Restraint(best_frame, restraint_dict,
                               temperature,
                               rest_type='Boresch')
         return restraint
@@ -842,7 +842,7 @@ class RestraintSearch():
         """
         
 
-        def findOrderedPairs(u, lig_selection_str, recept_selection_str, cutoff):
+        def _findOrderedPairs(u, lig_selection_str, recept_selection_str, cutoff):
             """Return a list of receptor-ligand anchor atoms pairs in the form
             (lig atom index, receptor atom index), where the pairs are ordered
             from low to high variance of distance over the trajectory.
@@ -887,7 +887,7 @@ class RestraintSearch():
                     pair_variance_dict[(lig_atom.index, prot_atom.index)]["dists"] = []
 
             # Compute Average Distance and SD
-            for frame in tqdm(u.trajectory, desc="Searching for low variance pairs. Frame no: "):
+            for frame in _tqdm(u.trajectory, desc="Searching for low variance pairs. Frame no: "):
                 for lig_atom_index, prot_atom_index in pair_variance_dict.keys():
                     distance = _dist(_mda.AtomGroup([u.atoms[lig_atom_index]]),
                                     _mda.AtomGroup([u.atoms[prot_atom_index]]),
@@ -913,7 +913,7 @@ class RestraintSearch():
             return pairs_ordered_sd
 
 
-        def getAnchorAts(a1_idx, selection_str, u):
+        def _getAnchorAts(a1_idx, selection_str, u):
             """Takes in index of anchor atom 1 (in either the receptor or ligand)
             and universe and returns list of all three anchor atoms, which are chosen
             to be contiguous and to satisfy the selection string. Only one set of anchor 
@@ -967,7 +967,7 @@ class RestraintSearch():
             return a1_idx, a2_idx, a3_idx
 
 
-        def getDistance(idx1, idx2, u):
+        def _getDistance(idx1, idx2, u):
             """ Distance in Angstrom"""
             distance = _dist(_mda.AtomGroup([u.atoms[idx1]]),
                              _mda.AtomGroup([u.atoms[idx2]]),
@@ -975,7 +975,7 @@ class RestraintSearch():
             return distance
 
 
-        def getAngle(idx1, idx2, idx3, u):
+        def _getAngle(idx1, idx2, idx3, u):
             """Angle in rad"""
             C = u.atoms[idx1].position
             B = u.atoms[idx2].position
@@ -984,7 +984,7 @@ class RestraintSearch():
             return angle
 
 
-        def getDihedral(idx1, idx2, idx3, idx4, u):
+        def _getDihedral(idx1, idx2, idx3, idx4, u):
             """Dihedral in rad"""
             positions = [u.atoms[idx].position for idx in
                          [idx1, idx2, idx3, idx4]]
@@ -994,22 +994,22 @@ class RestraintSearch():
             return dihedral
 
 
-        def getBoreschDof(l1, l2, l3, r1, r2, r3, u):
+        def _getBoreschDOF(l1, l2, l3, r1, r2, r3, u):
             """Calculate Boresch degrees of freedom from indices of anchor atoms"""
             # Ordering of connection of anchors is r3,r2,r1,l1,l2,l3
-            r = getDistance(r1, l1, u)
-            thetaA = getAngle(r2, r1, l1, u)
-            thetaB = getAngle(r1, l1, l2, u)
-            phiA = getDihedral(r3, r2, r1, l1, u)
-            phiB = getDihedral(r2, r1, l1, l2, u)
-            phiC = getDihedral(r1, l1, l2, l3, u)
+            r = _getDistance(r1, l1, u)
+            thetaA = _getAngle(r2, r1, l1, u)
+            thetaB = _getAngle(r1, l1, l2, u)
+            phiA = _getDihedral(r3, r2, r1, l1, u)
+            phiB = _getDihedral(r2, r1, l1, l2, u)
+            phiC = _getDihedral(r1, l1, l2, l3, u)
             # Not restrained but distance from collinearity must be checked
-            thetaR = getAngle(r3, r2, r1, u)  # Receptor internal angle
-            thetaL = getAngle(l1, l2, l3, u)  # Ligand internal angle
+            thetaR = _getAngle(r3, r2, r1, u)  # Receptor internal angle
+            thetaL = _getAngle(l1, l2, l3, u)  # Ligand internal angle
             return r, thetaA, thetaB, phiA, phiB, phiC, thetaR, thetaL
 
 
-        def getConfigVol(equil_vals, force_consts, temp):
+        def _getConfigVol(equil_vals, force_consts, temp):
             """Find the configurational volume accessible to the 
             decoupled restrained ligand based on the Boresch restraint.
             Based on part of Eqn 32 of J. Phys. Chem. B 2003, 107, 35, 9535–9551.
@@ -1037,7 +1037,7 @@ class RestraintSearch():
                 The configurational volume accessible to the restrained decoupled ligand,
                 in Angstrom^3.
             """
-            RT = k_boltz * temp # in kcal / mol
+            RT = _k_boltz * temp # in kcal / mol
             numerator1 = (equil_vals["r"] ** 2) * _np.sin(equil_vals["thetaA"]) * \
                             _np.sin(equil_vals["thetaB"]) # Units: A**2
             numerator2 = (2 * _np.pi * RT) **3 # Units: (kcal / mol )**3
@@ -1047,7 +1047,7 @@ class RestraintSearch():
             return config_vol
 
 
-        def findOrderedBoresch(u, lig_selection_str, recept_selection_str,
+        def _findOrderedBoresch(u, lig_selection_str, recept_selection_str,
                                pair_list, temp, force_constant, no_pairs=50):
             """Calculate a list of Boresch restraints and associated 
             statistics over the trajectory.
@@ -1104,12 +1104,12 @@ class RestraintSearch():
             # get values of degrees of freedom for lowest SD pairs across whole trajectory
 
             boresch_dof_data = {}
-            for pair in tqdm(pair_list[:no_pairs], desc="Scoring candidate Boresch anchor points. Anchor set no: "):
+            for pair in _tqdm(pair_list[:no_pairs], desc="Scoring candidate Boresch anchor points. Anchor set no: "):
                 boresch_dof_data[pair] = {}
                 l1_idx, r1_idx = pair
                 try:
-                    _, l2_idx, l3_idx = getAnchorAts(l1_idx, lig_selection_str, u)
-                    _, r2_idx, r3_idx = getAnchorAts(r1_idx, recept_selection_str, u)
+                    _, l2_idx, l3_idx = _getAnchorAts(l1_idx, lig_selection_str, u)
+                    _, r2_idx, r3_idx = _getAnchorAts(r1_idx, recept_selection_str, u)
                 except _AnalysisError: # Failed to find full set of anchor points for this pair
                     continue
                 boresch_dof_data[pair]["anchor_ats"] = [l1_idx, l2_idx, l3_idx,
@@ -1122,7 +1122,7 @@ class RestraintSearch():
 
                 for i, _ in enumerate(
                         u.trajectory):  # TODO: Use MDA.analysis.base instead?
-                    r, thetaA, thetaB, phiA, phiB, phiC, thetaR, thetaL = getBoreschDof(
+                    r, thetaA, thetaB, phiA, phiB, phiC, thetaR, thetaL = _getBoreschDOF(
                         l1_idx, l2_idx, l3_idx, r1_idx, r2_idx, r3_idx, u)
                     boresch_dof_data[pair]["r"]["values"].append(r)
                     boresch_dof_data[pair]["thetaA"]["values"].append(thetaA)
@@ -1163,14 +1163,14 @@ class RestraintSearch():
 
                     # Assume Gaussian distributions and calculate force constants for harmonic potentials
                     # so as to reproduce these distributions at 298 K
-                    boresch_dof_data[pair][dof]["k"] = k_boltz * temp / (
+                    boresch_dof_data[pair][dof]["k"] = _k_boltz * temp / (
                                 boresch_dof_data[pair][dof][
                                     "var"])  # Force constants in kcal mol-1 A-2 [rad-2]
 
                 # Calculate the configurational volume accessible based on each restraint
                 equil_vals = {dof:boresch_dof_data[pair][dof]["avg"] for dof in boresch_dof_list}
                 force_consts = {dof:boresch_dof_data[pair][dof]["k"] for dof in boresch_dof_list}
-                boresch_dof_data[pair]["config_vol"] = getConfigVol(equil_vals, force_consts, temp)
+                boresch_dof_data[pair]["config_vol"] = _getConfigVol(equil_vals, force_consts, temp)
 
                 # Now, after we've used the fluctuation-derived force constants to calculate the 
                 # configurational volume, set to user-supplied value if specified. 
@@ -1191,7 +1191,7 @@ class RestraintSearch():
 
             # Filter out force restraints with with 10 kT of collinearity or r = 0
             # Convert 10 kT to angle
-            R = k_boltz # molar gas constant in kcal mol-1 K-1
+            R = _k_boltz # molar gas constant in kcal mol-1 K-1
             min_stable_dist = lambda k : _np.sqrt((20 * R * temp) / k) # Get the "distance" at which 
                                                                        # restraint penalty is 10 kT
             pairs_ordered_boresch = []
@@ -1221,7 +1221,7 @@ class RestraintSearch():
             return pairs_ordered_boresch, boresch_dof_data
 
 
-        def plotDOF(ordered_restraint_labels, dof_data, restraint_idx=0,
+        def _plotDOF(ordered_restraint_labels, dof_data, restraint_idx=0,
                     dof_to_plot=["r", "thetaA", "thetaB", "phiA", "phiB","phiC"]):
             """Plot historgrams and variation with time of DOF over a trajectory.
 
@@ -1277,7 +1277,7 @@ class RestraintSearch():
             fig.savefig(f'{work_dir}/restraint_idx{restraint_idx}_dof_time.png', facecolor="white")
 
 
-        def getBoreschRestraint(pair, boresch_dof_data):
+        def _getBoreschRestraint(pair, boresch_dof_data):
             """Get the Boresch restraints for a specified pair in a form compatible
             with BSS.
 
@@ -1345,22 +1345,22 @@ class RestraintSearch():
                                     "kphiC": kphiC * _kcal_per_mol / (
                                                 _radian * _radian)}}
 
-            restraint =  Restraint(system, restraint_dict, temperature=temperature, rest_type='Boresch')
+            restraint =  _Restraint(system, restraint_dict, temperature=temperature, rest_type='Boresch')
             return restraint
 
 
         # Find pairs with lowest SD
-        pairs_ordered_sd = findOrderedPairs(u, lig_selection_str, recept_selection_str, cutoff)
+        pairs_ordered_sd = _findOrderedPairs(u, lig_selection_str, recept_selection_str, cutoff)
 
         # Convert to Boresch anchors, order by correction, and filter
-        pairs_ordered_boresch, boresch_dof_data = findOrderedBoresch(u,lig_selection_str, recept_selection_str,
+        pairs_ordered_boresch, boresch_dof_data = _findOrderedBoresch(u,lig_selection_str, recept_selection_str,
                                                                     pairs_ordered_sd, temperature.value(),
                                                                     force_constant)
 
         # Plot
-        plotDOF(pairs_ordered_boresch, boresch_dof_data, restraint_idx = restraint_idx)
+        _plotDOF(pairs_ordered_boresch, boresch_dof_data, restraint_idx = restraint_idx)
 
         # Convert to BSS compatible dictionary
-        restraint = getBoreschRestraint(pairs_ordered_boresch[restraint_idx], boresch_dof_data)
+        restraint = _getBoreschRestraint(pairs_ordered_boresch[restraint_idx], boresch_dof_data)
 
         return restraint
