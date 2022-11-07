@@ -53,8 +53,8 @@ def test_sanity(restraint):
     'Sanity check'
     assert isinstance(restraint, Restraint)
 
-def test_semi_analytical_correction(restraint):
-    dG = restraint.getCorrection(method="semi-analytical") / kcal_per_mol
+def test_numerical_correction(restraint):
+    dG = restraint.getCorrection(method="numerical") / kcal_per_mol
     assert np.isclose(-7.2, dG, atol=0.1)
 
 def test_analytical_correction(restraint):

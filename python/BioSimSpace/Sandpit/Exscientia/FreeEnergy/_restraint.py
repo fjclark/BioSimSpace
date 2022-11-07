@@ -392,7 +392,7 @@ class Restraint():
                                       f'yet. Only Gromacs and SOMD are supported.')
 
 
-    def getCorrection(self, method="semi-analytical"):
+    def getCorrection(self, method="numerical"):
         """Calculate the free energy of releasing the restraint
         to the standard state volume.'''
 
@@ -402,7 +402,10 @@ class Restraint():
            method : str
                The integration method to use for calculating the correction for
                releasing the restraint to the standard state concentration. 
-               "semi-analytical" or "analytical". 
+               "numerical" or "analytical". "numerical" is recommended as the 
+               analytical correction can introduce errors when the restraints are
+               weak, restrained angles are close to 0 or pi radians, or the restrained
+               distance is close to 0.
 
            Returns
            ----------
@@ -422,7 +425,7 @@ class Restraint():
             prefactor = 8 * (_np.pi ** 2) * v0 # In A^3. Divide this to account for force constants of 0 in the 
                                               # analytical correction
 
-            if method == "semi-analytical":
+            if method == "numerical":
                     # ========= Acknowledgement ===============
                     # Calculation copied from restraints.py  in
                     # Yank https://github.com/choderalab/yank 
@@ -560,7 +563,7 @@ class Restraint():
                 return dg
 
             else:
-                raise ValueError('method must be one of "semi-analytical" or "analytical"')
+                raise ValueError('method must be one of "numerical" or "analytical"')
 
 
     @property
