@@ -38,9 +38,10 @@ import shutil as _shutil
 import timeit as _timeit
 import warnings as _warnings
 
-from Sire import Base as _SireBase
-from Sire import IO as _SireIO
-from Sire import Units as _SireUnits
+from sire.legacy import Base as _SireBase
+from sire.legacy import IO as _SireIO
+
+from sire import units as _SireUnits
 
 from .. import _isVerbose
 from .._Exceptions import IncompatibleError as _IncompatibleError
@@ -906,9 +907,13 @@ class OpenMM(_process.Process):
             self.addToConfig(f"start_cycles = total_cycles - remaining_cycles")
             self.addToConfig( "checkpoint = 100")
             self.addToConfig( "if is_restart:")
-            self.addToConfig( "    percent_complete = 100 * (step / total_steps)")
+            self.addToConfig( "    fraction_complete = step / total_steps")
+            self.addToConfig( "    percent_complete = 100 * fraction_complete")
             self.addToConfig( "    print('Loaded state from an existing simulation.')")
             self.addToConfig( "    print(f'Simulation is {percent_complete}% complete.')")
+            self.addToConfig( "    if fraction_complete > 1.0:")
+            self.addToConfig( "        start_cycles = math.ceil(fraction_complete * total_cycles)")
+            self.addToConfig( "        total_cycles = start_cycles + total_cycles")
             self.addToConfig( "for x in range(start_cycles, total_cycles):")
             self.addToConfig( "    meta.step(simulation, steps_per_cycle)")
             self.addToConfig( "    current_cvs = np.array(list(meta.getCollectiveVariables(simulation)) + [meta.getHillHeight(simulation)])")
@@ -1667,7 +1672,7 @@ class OpenMM(_process.Process):
         """
         # We should verify that openmm is available to prevent
         # difficult-to-debug errors in the run script
-        from .._Utils import _try_import, _assert_imported
+        from ...._Utils import _try_import, _assert_imported
 
         _openmm = _try_import("openmm")
         _assert_imported(_openmm)

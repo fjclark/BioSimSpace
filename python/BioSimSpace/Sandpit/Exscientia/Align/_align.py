@@ -67,10 +67,11 @@ with _warnings.catch_warnings():
         _rdFMCS = _rdkit
         _RDLogger = _rdkit
 
-from Sire import Base as _SireBase
-from Sire import Maths as _SireMaths
-from Sire import Mol as _SireMol
-from Sire import Units as _SireUnits
+from sire.legacy import Base as _SireBase
+from sire.legacy import Maths as _SireMaths
+from sire.legacy import Mol as _SireMol
+
+from sire import units as _SireUnits
 
 from .. import _is_notebook, _isVerbose
 from .._Exceptions import AlignmentError as _AlignmentError
@@ -96,11 +97,13 @@ else:
 
 from ._merge import merge as _merge
 
-# Try to find the FKCOMBU program from KCOMBU: https://pdbj.org/kcombu
 try:
-    _fkcombu_exe = _SireBase.findExe("fkcombu").absoluteFilePath()
+    _fkcombu_exe = _SireBase.findExe("fkcombu_bss").absoluteFilePath()
 except:
-    _fkcombu_exe = None
+    try:
+        _fkcombu_exe = _SireBase.findExe("fkcombu").absoluteFilePath()
+    except:
+        _fkcombu_exe = None
 
 def generateNetwork(molecules, names=None, work_dir=None, plot_network=False,
         links_file=None, property_map={}, n_edges_forced=None):
@@ -1163,7 +1166,7 @@ def flexAlign(molecule0, molecule1, mapping=None, fkcombu_exe=None,
         command = "%s -T molecule0.pdb -R molecule1.pdb -alg F -iam mapping.txt -opdbT aligned.pdb" % fkcombu_exe
 
         # Run the command as a subprocess.
-        proc = _subprocess.run(_shlex.split(command), shell=False,
+        proc = _subprocess.run(_Utils.command_split(command), shell=False,
             stdout=_subprocess.PIPE, stderr=_subprocess.PIPE)
 
         # Check that the output file exists.
@@ -1184,7 +1187,7 @@ def flexAlign(molecule0, molecule1, mapping=None, fkcombu_exe=None,
     return _Molecule(molecule0)
 
 def merge(molecule0, molecule1, mapping=None, allow_ring_breaking=False,
-        allow_ring_size_change=False, force=False,
+        allow_ring_size_change=False, force=False, roi=None,
         property_map0={}, property_map1={}):
     """Create a merged molecule from 'molecule0' and 'molecule1' based on the
        atom index 'mapping'. The merged molecule can be used in single topology
@@ -1217,6 +1220,9 @@ def merge(molecule0, molecule1, mapping=None, allow_ring_breaking=False,
            This will likely lead to an unstable perturbation. This option
            takes precedence over 'allow_ring_breaking' and
            'allow_ring_size_change'.
+        
+       roi : list
+           The region of interest to merge. Consist of two lists of atom indices.
 
        property_map0 : dict
            A dictionary that maps "properties" in molecule0 to their user
@@ -1270,6 +1276,12 @@ def merge(molecule0, molecule1, mapping=None, allow_ring_breaking=False,
 
     if not isinstance(force, bool):
         raise TypeError("'force' must be of type 'bool'")
+    
+    if roi is not None:
+        if not isinstance(roi, list):
+            raise TypeError("'roi' must be of type 'list'.")
+        else:
+            _validate_roi(molecule0, molecule1, roi)
 
     # The user has passed an atom mapping.
     if mapping is not None:
@@ -1290,7 +1302,7 @@ def merge(molecule0, molecule1, mapping=None, allow_ring_breaking=False,
 
     # Create and return the merged molecule.
     return _merge(molecule0, molecule1, sire_mapping, allow_ring_breaking=allow_ring_breaking,
-            allow_ring_size_change=allow_ring_size_change, force=force,
+            allow_ring_size_change=allow_ring_size_change, force=force, roi=roi,
             property_map0=property_map0, property_map1=property_map1)
 
 def viewMapping(molecule0, molecule1, mapping=None, property_map0={},
@@ -1828,6 +1840,35 @@ def _validate_mapping(molecule0, molecule1, mapping, name):
                 raise ValueError("%r dictionary key:value pair '%s : %s' is out of range! "
                                  "The molecules contain %d and %d atoms."
                                  % (name, idx0, idx1, molecule0.nAtoms(), molecule1.nAtoms()))
+
+def _validate_roi(molecule0, molecule1, roi):
+    """Internal function to validate that a mapping contains key:value pairs
+       of the correct type.
+
+       Parameters
+       ----------
+
+       molecule0 : :class:`Molecule <BioSimSpace._SireWrappers.Molecule>`
+           The molecule of interest.
+
+       molecule1 : :class:`Molecule <BioSimSpace._SireWrappers.Molecule>`
+           The reference molecule.
+
+       roi : list
+           The region of interest to merge. 
+    """
+    if len(roi) != 2:
+        raise ValueError("The length of roi list must be 2.")
+    if not isinstance(roi[0], list) or not isinstance(roi[1], list):
+        raise ValueError("The element of roi must be of type list")
+    for mol_idx, ele in enumerate(roi):
+        for atom_idx in ele:
+            if type(atom_idx) is not int:
+                raise ValueError(f"The element of roi[{mol_idx}] should be of type int")
+            if atom_idx >= [molecule0, molecule1][mol_idx].nAtoms():
+                raise IndexError(f"The element of roi[{mol_idx}] should within range of number of atoms")
+    
+    
 
 def _to_sire_mapping(mapping):
     """Internal function to convert a regular mapping to Sire AtomIdx format.

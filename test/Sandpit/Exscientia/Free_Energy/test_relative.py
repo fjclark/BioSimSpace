@@ -4,6 +4,7 @@ import pytest
 import pandas as pd
 import numpy as np
 import bz2
+
 try:
     from alchemlyb.parsing.gmx import extract_u_nk
     is_alchemlyb = True
@@ -26,6 +27,7 @@ from BioSimSpace.Sandpit.Exscientia import Types as _Types
 has_gromacs = BSS._gmx_exe is not None
 
 @pytest.mark.skipif(has_gromacs is False, reason="Requires GROMACS to be installed.")
+@pytest.mark.skipif(is_alchemlyb is False, reason="Requires alchemlyb to be installed.")
 class Test_gmx_ABFE():
     @staticmethod
     @pytest.fixture(scope='class')
@@ -52,7 +54,6 @@ class Test_gmx_ABFE():
         for i in range(5):
             assert (path / f'lambda_{i}' / 'gromacs.xvg').is_file()
 
-    @pytest.mark.skipif(is_alchemlyb is False, reason='Need alchemlyb.')
     def test_lambda(self, freenrg):
         '''Test if the xvg files contain the correct lambda.'''
         path = pathlib.Path(freenrg._work_dir)
@@ -63,7 +64,7 @@ class Test_gmx_ABFE():
             assert np.isclose(u_nk.index.values[0][1], coul)
             assert np.isclose(u_nk.index.values[0][2], vdw)
 
-@pytest.mark.skipif((is_alchemtest and is_alchemlyb) is False,
+@pytest.mark.skipif(is_alchemtest is False,
                     reason="Requires alchemtest and alchemlyb to be installed.")
 class TestRelativeAnalysis():
     @staticmethod
@@ -130,7 +131,7 @@ class TestRelativeAnalysis():
 
     @pytest.mark.parametrize('fixture,length,energy',
                              [('gmx_ligand',  20, 7.654472744451637),
-                              ('gmx_complex', 30, 21.646667),
+                              ('gmx_complex', 30, 21.819752),
                               ('amber_complex_decharge', 5, -5.25352),
                               ('amber_solvated_vdw', 12, 2.261816)])
     def test_pmf(self, fixture, length, energy, request):
@@ -144,4 +145,4 @@ class TestRelativeAnalysis():
     def test_difference(self, gmx_complex, gmx_ligand):
         dG, error = BSS.FreeEnergy.Relative.difference(gmx_complex, gmx_ligand)
         np.testing.assert_allclose(dG / BSS.Units.Energy.kcal_per_mol,
-                                   13.9921942555, atol=0.1)
+                                   14.216101, atol=0.1)

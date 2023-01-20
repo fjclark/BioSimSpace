@@ -1,6 +1,6 @@
 import warnings
 
-from Sire import Base as _SireBase
+from sire.legacy import Base as _SireBase
 
 from .._SireWrappers import Molecule as _Molecule
 from .._Exceptions import IncompatibleError as _IncompatibleError
@@ -53,8 +53,12 @@ def decouple(molecule, charge=(True, False), LJ=(True, False), intramol=True):
         raise _IncompatibleError("'molecule' has already been decoupled!")
 
     for field, name in zip((charge, LJ), ('charge', 'LJ')):
-        if len(field) != 2:
-            raise ValueError(f"{name} must only have two values.")
+        try:
+            if len(field) != 2:
+                raise ValueError(f"{name} must only have two values.")
+        except TypeError:
+            raise TypeError(f"{name} has to be a iterable.")
+
         for value in field:
             if not isinstance(value, bool):
                 raise ValueError(f"{value} in {name} must be bool.")

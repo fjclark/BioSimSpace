@@ -14,7 +14,7 @@ has_gromacs = BSS._gmx_exe is not None
 @pytest.fixture
 def system(scope="session"):
     """Re-use the same molecuar system for each test."""
-    return BSS.IO.readMolecules("test/input/amber/ala/*")
+    return BSS.IO.readMolecules("test/Sandpit/Exscientia/input/amber/ala/*")
 
 @pytest.mark.skipif(has_gromacs is False, reason="Requires GROMACS to be installed.")
 def test_minimise(system):
@@ -84,7 +84,27 @@ def test_vacuum_water(system):
     # Run the process and check that it finishes without error.
     assert run_process(new_system, protocol)
 
-def test_restraint(system, tmp_path):
+@pytest.mark.skipif(has_gromacs is False, reason="Requires GROMACS to be installed.")
+@pytest.mark.parametrize("restraint", ["backbone", "heavy"])
+def test_restraints(restraint):
+    """Regression test for correct injection of restraint file into GROMACS topology."""
+
+    # Load the perturbable system.
+    system = BSS.IO.readPerturbableSystem(
+        "test/Sandpit/Exscientia/input/morphs/complex_vac0.prm7",
+        "test/Sandpit/Exscientia/input/morphs/complex_vac0.rst7",
+        "test/Sandpit/Exscientia/input/morphs/complex_vac1.prm7",
+        "test/Sandpit/Exscientia/input/morphs/complex_vac1.rst7"
+    )
+
+    # Create an equilibration protocol with backbone restraints.
+    protocol = BSS.Protocol.Equilibration(restraint=restraint)
+
+    # Create the simulation process.
+    process = BSS.Process.Gromacs(system, protocol)
+
+@pytest.mark.skipif(has_gromacs is False, reason="Requires GROMACS to be installed.")
+def test_write_restraint(system, tmp_path):
     """Test if the restraint has been written in a way that could be processed
     correctly."""
     ligand = ligand = BSS.IO.readMolecules(BSS.IO.glob("test/input/ligands/ligand01*")).getMolecule(0)
@@ -113,7 +133,7 @@ def test_restraint(system, tmp_path):
                            "kphiA":10 * kcal_per_mol / (radian * radian),
                            "kphiB":10 * kcal_per_mol / (radian * radian),
                            "kphiC":10 * kcal_per_mol / (radian * radian)}}
-    restraint = Restraint(system, restraint_dict, 300 * kelvin, rest_type='Boresch')
+    restraint = Restraint(system, restraint_dict, 300 * kelvin, restraint_type='Boresch')
 
     # Create a short production protocol.
     protocol = BSS.Protocol.Production(runtime=BSS.Types.Time(0.0001, "nanoseconds"))
@@ -123,7 +143,6 @@ def test_restraint(system, tmp_path):
                        work_dir=str(tmp_path))
     with open(tmp_path / 'test.top', 'r') as f:
         assert 'intermolecular_interactions' in f.read()
-
 
 def run_process(system, protocol, **kwargs):
     """Helper function to run various simulation protocols."""
