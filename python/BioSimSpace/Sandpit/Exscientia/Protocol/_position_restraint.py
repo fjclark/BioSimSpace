@@ -41,7 +41,6 @@ class _PositionRestraintMixin:
             The force constant for the restraint potential. If a 'float' is
             passed, then default units of 'kcal_per_mol / angstrom**2' will
             be used.
-
         """
         # Set the restraint.
         if restraint is not None:
@@ -137,7 +136,7 @@ class _PositionRestraintMixin:
         Returns
         -------
 
-        force_constant :class:`GeneralUnit <BioSimSpace.Types._GeneralUnit>`
+        force_constant : class:`GeneralUnit <BioSimSpace.Types._GeneralUnit>`
             The force constant for the restraint, in units of
             kcal_per_mol/angstrom**2.
         """

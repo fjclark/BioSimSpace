@@ -1,4 +1,3 @@
-
 import os
 import sys
 import glob
@@ -17,11 +16,11 @@ if "ANACONDA_TOKEN" in os.environ:
 else:
     conda_token = "TEST"
 
-# get the build directory
-if "BUILD_DIR" in os.environ:
-    conda_bld = os.environ["BUILD_DIR"]
-else:
-    conda_bld = os.path.join("..", "build")
+# get the root conda directory
+conda = os.environ["CONDA"]
+
+# Set the path to the conda-bld directory.
+conda_bld = os.path.join(conda, "envs", "bss_build", "conda-bld")
 
 print(f"conda_bld = {conda_bld}")
 
@@ -42,8 +41,10 @@ packages = " ".join(packages)
 
 def run_cmd(cmd):
     import subprocess
+
     p = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE)
     return str(p.stdout.read().decode("utf-8")).lstrip().rstrip()
+
 
 gitdir = os.path.join(srcdir, ".git")
 
@@ -58,8 +59,8 @@ else:
     print("\nNo tag is set. This is a 'devel' release.")
     label = "--label dev"
 
-# Upload the packages to the michellab channel on Anaconda Cloud.
-cmd = f"anaconda --token {conda_token} upload --user michellab {label} --force {packages}"
+# Upload the packages to the openbiosim channel on Anaconda Cloud.
+cmd = f"anaconda --token {conda_token} upload --user openbiosim {label} --force {packages}"
 
 print(f"\nUpload command:\n\n{cmd}\n")
 

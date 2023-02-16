@@ -1,14 +1,31 @@
 import itertools
-import pytest
-
+import os
 import pandas as pd
+import pytest
 
 import BioSimSpace.Sandpit.Exscientia as BSS
 from BioSimSpace.Sandpit.Exscientia.Process._process import Process
+from BioSimSpace.Sandpit.Exscientia._Utils import _try_import, _have_imported
 
+# Make sure AMBER is installed.
+if BSS._amber_home is not None:
+    exe = "%s/bin/sander" % BSS._amber_home
+    if os.path.isfile(exe):
+        has_amber = True
+    else:
+        has_amber = False
+else:
+    has_amber = False
 
 # Make sure GROMSCS is installed.
 has_gromacs = BSS._gmx_exe is not None
+
+# Make sure openff is installed.
+_openff = _try_import("openff")
+has_openff = _have_imported(_openff)
+
+# Make sure antechamber is installed.
+has_antechamber = BSS.Parameters._Protocol._amber._antechamber_exe is not None
 
 
 @pytest.fixture
@@ -79,7 +96,10 @@ def protocol(request, free_energy, equilibration, production):
             return BSS.Protocol.Production(**production, restart=restart)
 
 
-@pytest.mark.skipif(has_gromacs is False, reason="Requires GROMACS to be installed.")
+@pytest.mark.skipif(
+    has_gromacs is False or has_openff is False,
+    reason="Requires GROMACS and OpenFF to be installed.",
+)
 def test_gromacs(protocol, system, tmp_path):
     BSS.Process.Gromacs(system, protocol, work_dir=str(tmp_path), ignore_warnings=True)
     with open(tmp_path / "gromacs.mdp", "r") as f:
@@ -91,6 +111,10 @@ def test_gromacs(protocol, system, tmp_path):
         assert "gen-temp" in cfg
 
 
+@pytest.mark.skipif(
+    has_amber is False or has_openff is False,
+    reason="Requires AMBER and OpenFF to be installed.",
+)
 def test_amber(protocol, system, tmp_path):
     BSS.Process.Amber(system, protocol, work_dir=str(tmp_path))
     with open(tmp_path / "amber.cfg", "r") as f:
@@ -103,6 +127,10 @@ def test_amber(protocol, system, tmp_path):
             assert "ntx=1" in cfg
 
 
+@pytest.mark.skipif(
+    has_antechamber is False or has_openff is False,
+    reason="Requires AmberTools/antechamber and OpenFF to be installed.",
+)
 @pytest.mark.parametrize("restart", [True, False])
 @pytest.mark.parametrize("name", ["system", "system_vel"])
 @pytest.mark.parametrize(

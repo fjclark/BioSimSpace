@@ -1,7 +1,6 @@
 import math as _math
 import warnings as _warnings
-
-from sire import units as _SireUnits
+from sire.legacy import Units as _SireUnits
 
 from .. import Protocol as _Protocol
 from ..Align._squash import _amber_mask_from_indices, _squashed_atom_mapping
@@ -13,7 +12,8 @@ class ConfigFactory:
     """A class for generating a config based on a template protocol."""
 
     def __init__(self, system, protocol):
-        """Constructor.
+        """
+        Constructor.
 
         Parameters
         ----------
@@ -100,22 +100,37 @@ class ConfigFactory:
             A dictionary of AMBER-compatible options.
         """
         # Get the merged to squashed atom mapping of the whole system for both endpoints.
-        atom_mapping0 = _squashed_atom_mapping(self.system, is_lambda1=False)
-        atom_mapping1 = _squashed_atom_mapping(self.system, is_lambda1=True)
+        mcs_mapping0 = _squashed_atom_mapping(
+            self.system, is_lambda1=False, environment=False, common=True, dummies=False
+        )
+        mcs_mapping1 = _squashed_atom_mapping(
+            self.system, is_lambda1=True, environment=False, common=True, dummies=False
+        )
+        dummy_mapping0 = _squashed_atom_mapping(
+            self.system, is_lambda1=False, environment=False, common=False, dummies=True
+        )
+        dummy_mapping1 = _squashed_atom_mapping(
+            self.system, is_lambda1=True, environment=False, common=False, dummies=True
+        )
 
-        # Generate the ti and dummy masks.
+        # Generate the TI and dummy masks.
         mcs0_indices, mcs1_indices, dummy0_indices, dummy1_indices = [], [], [], []
         for i in range(self.system.nAtoms()):
-            if i not in atom_mapping0:
-                dummy1_indices.append(atom_mapping1[i])
-            elif i not in atom_mapping1:
-                dummy0_indices.append(atom_mapping0[i])
-            # The TI region is defined by all different squashed atoms that are mapped to the same merged atom.
-            elif atom_mapping0[i] != atom_mapping1[i]:
-                mcs0_indices.append(atom_mapping0[i])
-                mcs1_indices.append(atom_mapping1[i])
+            if i in dummy_mapping0:
+                dummy0_indices.append(dummy_mapping0[i])
+            if i in dummy_mapping1:
+                dummy1_indices.append(dummy_mapping1[i])
+            if i in mcs_mapping0:
+                mcs0_indices.append(mcs_mapping0[i])
+            if i in mcs_mapping1:
+                mcs1_indices.append(mcs_mapping1[i])
         ti0_indices = mcs0_indices + dummy0_indices
         ti1_indices = mcs1_indices + dummy1_indices
+
+        # AMBER doesn't seem to work well with the same atom being defined as a scmask in both endstates
+        common_dummies = set(dummy0_indices) & set(dummy1_indices)
+        dummy0_indices = sorted(set(dummy0_indices) - common_dummies)
+        dummy1_indices = sorted(set(dummy1_indices) - common_dummies)
 
         # Define whether HMR is used based on the timestep.
         # When HMR is used, there can be no SHAKE.
@@ -136,7 +151,8 @@ class ConfigFactory:
         return option_dict
 
     def generateAmberConfig(self, extra_options=None, extra_lines=None):
-        """Outputs the current protocol in a format compatible with AMBER.
+        """
+        Outputs the current protocol in a format compatible with AMBER.
 
         Parameters
         ----------
@@ -244,7 +260,6 @@ class ConfigFactory:
 
                     # The restraintmask cannot be more than 256 characters.
                     if len(restraint_mask) > 256:
-
                         # AMBER has a limit on the length of the restraintmask
                         # so it's easy to overflow if we are matching by index
                         # on a large protein. As such, handle "backbone" and
@@ -293,7 +308,9 @@ class ConfigFactory:
         # Temperature control.
         if not isinstance(self.protocol, _Protocol.Minimisation):
             protocol_dict["ntt"] = 3  # Langevin dynamics.
-            protocol_dict["gamma_ln"] = 2  # Collision frequency (ps).
+            protocol_dict["gamma_ln"] = "{:.5f}".format(
+                1 / self.protocol.getTauT().picoseconds().value()
+            )  # Collision frequency (ps^-1).
             if isinstance(self.protocol, _Protocol.Equilibration):
                 temp0 = self.protocol.getStartTemperature().kelvin().value()
                 temp1 = self.protocol.getEndTemperature().kelvin().value()
@@ -347,7 +364,8 @@ class ConfigFactory:
         return total_lines
 
     def generateGromacsConfig(self, extra_options=None, extra_lines=None):
-        """Outputs the current protocol in a format compatible with GROMACS.
+        """
+        Outputs the current protocol in a format compatible with GROMACS.
 
         Parameters
         ----------
@@ -424,9 +442,11 @@ class ConfigFactory:
                 # Don't use barostat for vacuum simulations.
                 if self._has_box and self._has_water:
                     protocol_dict["pcoupl"] = "c-rescale"  # Barostat type.
-                    protocol_dict[
-                        "tau-p"
-                    ] = 1  # 1ps time constant for pressure coupling.
+                    # Do the MC move every 100 steps to be the same as AMBER.
+                    protocol_dict["nstpcouple"] = 100
+                    # 4ps time constant for pressure coupling.
+                    # As the tau-p has to be 10 times larger than nstpcouple * dt (4 fs)
+                    protocol_dict["tau-p"] = 4
                     protocol_dict[
                         "ref-p"
                     ] = f"{self.protocol.getPressure().bar().value():.5f}"  # Pressure in bar.
@@ -445,7 +465,9 @@ class ConfigFactory:
             protocol_dict[
                 "tc-grps"
             ] = "system"  # A single temperature group for the entire system.
-            protocol_dict["tau-t"] = 2  # Collision frequency (ps).
+            protocol_dict["tau-t"] = "{:.5f}".format(
+                self.protocol.getTauT().picoseconds().value()
+            )  # Collision frequency (ps).
 
             if isinstance(self.protocol, _Protocol.Equilibration):
                 if self.protocol.isConstantTemp():
@@ -555,7 +577,8 @@ class ConfigFactory:
         return total_lines
 
     def generateSomdConfig(self, extra_options=None, extra_lines=None):
-        """Outputs the current protocol in a format compatible with SOMD.
+        """
+        Outputs the current protocol in a format compatible with SOMD.
 
         Parameters
         ----------

@@ -1,4 +1,3 @@
-
 import sys
 import os
 import subprocess
@@ -33,10 +32,13 @@ def run_cmd(cmd):
     p = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE)
     return str(p.stdout.read().decode("utf-8")).lstrip().rstrip()
 
+
 gitdir = os.path.join(srcdir, ".git")
 
 # Get the BSS branch.
-branch = run_cmd(f"git --git-dir={gitdir} --work-tree={srcdir} rev-parse --abbrev-ref HEAD")
+branch = run_cmd(
+    f"git --git-dir={gitdir} --work-tree={srcdir} rev-parse --abbrev-ref HEAD"
+)
 print(branch)
 
 lines = open(template, "r").readlines()
@@ -57,7 +59,6 @@ if len(build_reqs) > 0:
     build_reqs = f"  build:\n{dep_lines(build_reqs)}"
 else:
     build_reqs = ""
-
 
 with open(recipe, "w") as FILE:
     for line in lines:

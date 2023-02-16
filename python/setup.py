@@ -5,6 +5,7 @@ import platform
 # import sire in mixed_api compatibility mode
 try:
     import sire as _sr
+
     _sr.use_mixed_api()
 except ImportError:
     # a new version of sire is not installed
@@ -29,10 +30,13 @@ if not os.getenv("BSS_CONDA_INSTALL"):
     # Make sure we're using the Sire python interpreter.
     try:
         import sire.legacy.Base
+
         bin_dir = sire.legacy.Base.getBinDir()
         lib_dir = sire.legacy.Base.getLibDir()
     except ModuleNotFoundError:
-        raise ModuleNotFoundError("BioSimSpace currently requires the Sire Python interpreter: www.siremol.org")
+        raise ModuleNotFoundError(
+            "BioSimSpace currently requires the Sire Python interpreter: www.siremol.org"
+        )
 
     # Check the Sire version.
     if int(sire.legacy.__version__.replace(".", "")) < min_ver_int:
@@ -43,11 +47,14 @@ from setuptools import setup, find_packages
 import versioneer
 
 # A list of authors and their email addresses.
-authors=("Lester Hedges <lester.hedges@gmail.com, "
-         "Christopher Woods <chryswoods@gmail.com>, "
-         "Antonia Mey <antonia.mey@gmail.com")
+authors = (
+    "Lester Hedges <lester.hedges@gmail.com, "
+    "Christopher Woods <chryswoods@gmail.com>, "
+    "Antonia Mey <antonia.mey@gmail.com"
+)
 
 _installed_list = None
+
 
 # Function to check if a conda dependency has been installed
 def is_installed(dep: str, conda: str):
@@ -69,23 +76,26 @@ def clear_installed_list():
 
 # Run the setup.
 try:
-    setup(name='BioSimSpace',
-          version=versioneer.get_version(),
-          cmdclass=versioneer.get_cmdclass(),
-          description='BioSimSpace: Making biomolecular simulation a breeze.',
-          author=authors,
-          url='https://github.com/michellab/BioSimSpace',
-          license='GPLv2',
-          packages=find_packages(),
-          include_package_data=True,
-          zip_safe=False
-        )
+    setup(
+        name="BioSimSpace",
+        version=versioneer.get_version(),
+        cmdclass=versioneer.get_cmdclass(),
+        description="BioSimSpace: Making biomolecular simulation a breeze.",
+        author=authors,
+        url="https://github.com/michellab/BioSimSpace",
+        license="GPLv2",
+        packages=find_packages(),
+        include_package_data=True,
+        zip_safe=False,
+    )
 
 # Post setup configuration.
 finally:
     import os
 
-    if "install" in sys.argv and not (os.getenv("BSS_CONDA_INSTALL") or os.getenv("BSS_SKIP_DEPENDENCIES")):
+    if "install" in sys.argv and not (
+        os.getenv("BSS_CONDA_INSTALL") or os.getenv("BSS_SKIP_DEPENDENCIES")
+    ):
         import shlex
         import subprocess
 
@@ -97,23 +107,24 @@ finally:
         stderr = sys.stderr
 
         # Create a list of the conda dependencies.
-        conda_deps = ["configargparse",
-                      "pygtail",
-                      "pyyaml",
-                      "watchdog",
-                      "pydot",
-                      "networkx",
-                      "nglview",
-                      "ipywidgets<8",
-                      "py3dmol",
-                      "pypdb",
-                      "rdkit",
-                      "parmed",
-                      "lomap2",
-                      "mdtraj",             # known not available on aarch64
-                      "mdanalysis",         # known not available on aarch64
-                      "openff-toolkit"      # known not available on aarch64
-                     ]
+        conda_deps = [
+            "configargparse",
+            "pygtail",
+            "pyyaml",
+            "watchdog",
+            "pydot",
+            "networkx",
+            "nglview",
+            "ipywidgets<8",
+            "py3dmol",
+            "pypdb",
+            "rdkit",
+            "parmed",
+            "lomap2",
+            "mdtraj",  # known not available on aarch64
+            "mdanalysis",  # known not available on aarch64
+            "openff-toolkit",  # known not available on aarch64
+        ]
 
         # Don't try to install things that are already installed...
         to_install_deps = []
@@ -131,6 +142,14 @@ finally:
             real_conda_exe = os.path.join(bin_dir, "conda")
 
             if not os.path.exists(conda_exe):
+                # This could be in an environment
+                conda_exe = os.path.join(bin_dir, "..", "..", "..", "bin", "mamba")
+                real_conda_exe = os.path.join(bin_dir, "..", "..", "..", "bin", "conda")
+
+                if not os.path.exists(conda_exe):
+                    if not os.path.exists(real_conda_exe):
+                        real_conda_exe = os.path.join(bin_dir, "conda")
+
                 conda_exe = real_conda_exe
 
         for dep in conda_deps:
@@ -151,7 +170,12 @@ finally:
         command = "%s config --system --prepend channels conda-forge" % real_conda_exe
         print(command)
         try:
-            subprocess.run(shlex.split(command, posix=posix), shell=False, stdout=stdout, stderr=stderr)
+            subprocess.run(
+                shlex.split(command, posix=posix),
+                shell=False,
+                stdout=stdout,
+                stderr=stderr,
+            )
         except Exception as e:
             print(f"Something went wrong ({e}). Continuing regardless...")
 
@@ -159,7 +183,12 @@ finally:
         command = "%s config --system --set auto_update_conda false" % real_conda_exe
         print(command)
         try:
-            subprocess.run(shlex.split(command, posix=posix), shell=False, stdout=stdout, stderr=stderr)
+            subprocess.run(
+                shlex.split(command, posix=posix),
+                shell=False,
+                stdout=stdout,
+                stderr=stderr,
+            )
         except Exception as e:
             print(f"Something went wrong ({e}). Continuing regardless...")
 
@@ -170,14 +199,21 @@ finally:
         all_installed_ok = True
 
         try:
-            subprocess.run(shlex.split(command, posix=posix), shell=False,
-                           stdout=stdout, stderr=stderr, check=True)
+            subprocess.run(
+                shlex.split(command, posix=posix),
+                shell=False,
+                stdout=stdout,
+                stderr=stderr,
+                check=True,
+            )
         except Exception:
             all_installed_ok = False
 
         if not all_installed_ok:
             print("There were errors installing some of the dependencies.")
-            print("We will now try to install them one-by-one. This may take some time...")
+            print(
+                "We will now try to install them one-by-one. This may take some time..."
+            )
 
             failures = []
 
@@ -187,44 +223,73 @@ finally:
                     command = "%s install -y -q %s" % (conda_exe, dep)
 
                     try:
-                        subprocess.run(shlex.split(command, posix=posix), shell=False,
-                                       stdout=stdout, stderr=stderr, check=True)
+                        subprocess.run(
+                            shlex.split(command, posix=posix),
+                            shell=False,
+                            stdout=stdout,
+                            stderr=stderr,
+                            check=True,
+                        )
                     except Exception:
                         failures.append(dep)
 
             if len(failures) == 0:
                 print("All dependencies installed successfully!")
             else:
-                print("\n** Failed to install these dependencies: %s" % ", ".join(failures))
-                print("** BioSimSpace will still install and run, but some functionality may not be available.\n")
+                print(
+                    "\n** Failed to install these dependencies: %s"
+                    % ", ".join(failures)
+                )
+                print(
+                    "** BioSimSpace will still install and run, but some functionality may not be available.\n"
+                )
         else:
             print("All dependencies install successfully first time!")
-
 
         print("Activating notebook extension: nglview")
 
         if sys.platform == "win32":
             bin_dir = os.path.join(bin_dir, "Scripts")
 
-        command = "%s/jupyter-nbextension install nglview --py --sys-prefix --log-level=0" % bin_dir
-        subprocess.run(shlex.split(command, posix=posix), shell=False, stdout=stdout, stderr=stderr)
+        command = (
+            "%s/jupyter-nbextension install nglview --py --sys-prefix --log-level=0"
+            % bin_dir
+        )
+        subprocess.run(
+            shlex.split(command, posix=posix),
+            shell=False,
+            stdout=stdout,
+            stderr=stderr,
+        )
         command = "%s/jupyter-nbextension enable nglview --py --sys-prefix" % bin_dir
-        subprocess.run(shlex.split(command, posix=posix), shell=False, stdout=stdout, stderr=stderr)
+        subprocess.run(
+            shlex.split(command, posix=posix),
+            shell=False,
+            stdout=stdout,
+            stderr=stderr,
+        )
 
         print("Cleaning conda environment")
         command = "%s clean --all --yes --quiet" % conda_exe
-        subprocess.run(shlex.split(command, posix=posix), shell=False, stdout=stdout, stderr=stderr)
+        subprocess.run(
+            shlex.split(command, posix=posix),
+            shell=False,
+            stdout=stdout,
+            stderr=stderr,
+        )
 
         # We can't install BioSimSpace here because it confuses the Sire old/new/mixed API
-        #try:
+        # try:
         #    import BioSimSpace
-        #except:
+        # except:
         #    print("\nPossible installation issues.")
         #    sys.exit()
 
         print("\nDone!")
 
-        print("\nIf you have problems with Jupyter permissions, try removing '$HOME/.jupyter' or '$HOME/.local/share/jupyter'")
+        print(
+            "\nIf you have problems with Jupyter permissions, try removing '$HOME/.jupyter' or '$HOME/.local/share/jupyter'"
+        )
 
         print("\nFor optional package support...")
         print("AMBER:   http://ambermd.org")

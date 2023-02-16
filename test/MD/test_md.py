@@ -28,6 +28,10 @@ try:
 except:
     has_namd = False
 
+# Store the tutorial URL.
+url = BSS.tutorialUrl()
+
+
 @pytest.mark.skipif(has_amber is False, reason="Requires AMBER to be installed.")
 def test_amber():
     """Test a short AMBER minimisation protocol with the MD driver."""
@@ -35,11 +39,8 @@ def test_amber():
     # Create a short minimisation protocol.
     protocol = BSS.Protocol.Minimisation(steps=100)
 
-    # Glob the input files.
-    files = BSS.IO.glob("test/input/amber/ala/*")
-
     # Load the molecular system.
-    system = BSS.IO.readMolecules(files)
+    system = BSS.IO.readMolecules(["test/input/ala.top", "test/input/ala.crd"])
 
     # Initialise the AMBER process.
     process = BSS.MD.run(system, protocol, name="test")
@@ -50,6 +51,7 @@ def test_amber():
     # Check that the process finishes without error.
     assert not process.isError()
 
+
 @pytest.mark.skipif(has_gromacs is False, reason="Requires GROMACS to be installed.")
 def test_gromacs():
     """Test a short GROMACS minimisation protocol with the MD driver."""
@@ -57,11 +59,8 @@ def test_gromacs():
     # Create a short minimisation protocol.
     protocol = BSS.Protocol.Minimisation(steps=100)
 
-    # Glob the input files.
-    files = BSS.IO.glob("test/input/gromacs/kigaki/*")
-
     # Load the molecular system.
-    system = BSS.IO.readMolecules(files)
+    system = BSS.IO.readMolecules([f"{url}/kigaki.top.bz2", f"{url}/kigaki.gro.bz2"])
 
     # Initialise the GROMACS process.
     process = BSS.MD.run(system, protocol, name="test")
@@ -72,6 +71,7 @@ def test_gromacs():
     # Check that the process finishes without error.
     assert not process.isError()
 
+
 @pytest.mark.skipif(has_namd is False, reason="Requires NAMD to be installed.")
 def test_namd():
     """Test a short NAMD minimisation protocol with the MD driver."""
@@ -79,11 +79,10 @@ def test_namd():
     # Create a short minimisation protocol.
     protocol = BSS.Protocol.Minimisation(steps=100)
 
-    # Glob the input files.
-    files = BSS.IO.glob("test/input/namd/alanin/*")
-
     # Load the molecular system.
-    system = BSS.IO.readMolecules(files)
+    system = BSS.IO.readMolecules(
+        ["test/input/alanin.psf", "test/input/alanin.pdb", "test/input/alanin.params"]
+    )
 
     # Initialise the NAMD process.
     process = BSS.MD.run(system, protocol, name="test")

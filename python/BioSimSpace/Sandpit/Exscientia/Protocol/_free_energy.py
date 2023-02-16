@@ -1,13 +1,13 @@
 ######################################################################
 # BioSimSpace: Making biomolecular simulation a breeze!
 #
-# Copyright: 2017-2022
+# Copyright: 2017-2023
 #
 # Authors: Lester Hedges <lester.hedges@gmail.com>
 #
 # BioSimSpace is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 2 of the License, or
+# the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
 # BioSimSpace is distributed in the hope that it will be useful,
@@ -19,22 +19,16 @@
 # along with BioSimSpace. If not, see <http://www.gnu.org/licenses/>.
 #####################################################################
 
-"""
-Functionality for free energy protocols.
-"""
+"""Functionality for free energy protocols."""
 
 __author__ = "Lester Hedges"
 __email__ = "lester.hedges@gmail.com"
 
 __all__ = ["FreeEnergy"]
 
-import math as _math
-import warnings as _warnings
-
-from .. import Types as _Types
-
 from ._free_energy_mixin import _FreeEnergyMixin
 from ._production import Production as _Production
+from .. import Types as _Types
 from .. import Units as _Units
 
 
@@ -52,6 +46,7 @@ class FreeEnergy(_Production, _FreeEnergyMixin):
         runtime=_Types.Time(4, "nanosecond"),
         temperature=_Types.Temperature(300, "kelvin"),
         pressure=_Types.Pressure(1, "atmosphere"),
+        tau_t=_Types.Time(1, "picosecond"),
         report_interval=200,
         restart_interval=1000,
         first_step=0,
@@ -91,6 +86,9 @@ class FreeEnergy(_Production, _FreeEnergyMixin):
 
         pressure : :class:`Pressure <BioSimSpace.Types.Pressure>`
             The pressure. Pass pressure=None to use the NVT ensemble.
+
+        tau_t : :class:`Time <BioSimSpace.Types.Time>`
+            Time constant for thermostat coupling.
 
         report_interval : int
             The frequency at which statistics are recorded. (In integration steps.)
@@ -145,6 +143,7 @@ class FreeEnergy(_Production, _FreeEnergyMixin):
             runtime=runtime,
             temperature=temperature,
             pressure=pressure,
+            tau_t=tau_t,
             report_interval=report_interval,
             restart_interval=restart_interval,
             first_step=first_step,

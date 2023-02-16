@@ -8,9 +8,24 @@ import pytest
 import BioSimSpace.Sandpit.Exscientia as BSS
 from BioSimSpace.Sandpit.Exscientia.Units.Energy import kj_per_mol
 from BioSimSpace.Sandpit.Exscientia.Units.Length import angstrom
+from BioSimSpace.Sandpit.Exscientia._Utils import _try_import, _have_imported
+
+# Check whether AMBER is installed.
+if BSS._amber_home is not None:
+    exe = "%s/bin/sander" % BSS._amber_home
+    if os.path.isfile(exe):
+        has_amber = True
+    else:
+        has_amber = False
+else:
+    has_amber = False
 
 # Make sure GROMSCS is installed.
 has_gromacs = BSS._gmx_exe is not None
+
+# Make sure openff is installed.
+_openff = _try_import("openff")
+has_openff = _have_imported(_openff)
 
 
 @pytest.fixture
@@ -92,10 +107,17 @@ def protocol(request, restraint, free_energy, minimisation, equilibration, produ
             return BSS.Protocol.Production(**production, **restraint)
 
 
-@pytest.mark.skipif(has_gromacs is False, reason="Requires GROMACS to be installed.")
+@pytest.mark.skipif(
+    has_gromacs is False or has_openff is False,
+    reason="Requires GROMACS and openff to be installed",
+)
 def test_gromacs(protocol, system, ref_system, tmp_path):
     proc = BSS.Process.Gromacs(
-        system, protocol, reference_system=ref_system, work_dir=str(tmp_path), ignore_warnings=True
+        system,
+        protocol,
+        reference_system=ref_system,
+        work_dir=str(tmp_path),
+        ignore_warnings=True,
     )
 
     # We have the restraints
@@ -105,13 +127,22 @@ def test_gromacs(protocol, system, ref_system, tmp_path):
 
     # We have generated a separate restraint reference
     assert os.path.exists(proc._ref_file)
-    contents_ref, contents_gro = open(proc._ref_file).readlines(), open(proc._gro_file).readlines()
+    contents_ref, contents_gro = (
+        open(proc._ref_file).readlines(),
+        open(proc._gro_file).readlines(),
+    )
     diff = list(unified_diff(contents_ref, contents_gro))
     assert len(diff)
 
 
+@pytest.mark.skipif(
+    has_gromacs is False or has_openff is False,
+    reason="Requires AMBER and openff to be installed",
+)
 def test_amber(protocol, system, ref_system, tmp_path):
-    proc = BSS.Process.Amber(system, protocol, reference_system=ref_system, work_dir=str(tmp_path))
+    proc = BSS.Process.Amber(
+        system, protocol, reference_system=ref_system, work_dir=str(tmp_path)
+    )
 
     # We have the restraints
     with open(tmp_path / "amber.cfg", "r") as f:
@@ -121,7 +152,10 @@ def test_amber(protocol, system, ref_system, tmp_path):
 
     # We have generated a separate restraint reference
     assert os.path.exists(proc._ref_file)
-    contents_ref, contents_rst = open(proc._ref_file).readlines(), open(proc._rst_file).readlines()
+    contents_ref, contents_rst = (
+        open(proc._ref_file).readlines(),
+        open(proc._rst_file).readlines(),
+    )
     diff = list(unified_diff(contents_ref, contents_rst))
     assert len(diff)
 

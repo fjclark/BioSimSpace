@@ -1,13 +1,13 @@
 ######################################################################
 # BioSimSpace: Making biomolecular simulation a breeze!
 #
-# Copyright: 2017-2022
+# Copyright: 2017-2023
 #
 # Authors: Lester Hedges <lester.hedges@gmail.com>
 #
 # BioSimSpace is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 2 of the License, or
+# the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
 # BioSimSpace is distributed in the hope that it will be useful,
@@ -72,7 +72,8 @@ get the minimised molecular system.
    import BioSimSpace as BSS
 
    # Load a molecular system from file.
-   system = BSS.IO.readMolecules(BSS.IO.glob("amber/ala/*"))
+   files = BSS.IO.expand(BSS.tutorialUrl(), ["ala.top", "ala.crd"], ".bz2")
+   system = BSS.IO.readMolecules(files)
 
    # Create a minimisation protocol with 1000 steps.
    protocol = BSS.Protocol.Minimisation(steps=1000)
