@@ -1,27 +1,51 @@
 name: Build
 
 on:
+  workflow_dispatch:
   push:
     branches: [ devel ]
   pull_request:
     branches: [ devel ]
 
+# Note that push and pull-request builds are automatically
+# now skipped by GitHub if
+# [skip ci], [ci skip], [no ci], [skip actions], or [actions skip]
+# are in the commit message. We don't need to check for this ourselves.
+
 jobs:
   build:
-    name: build (${{ matrix.python-version }}, ${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    if: "!contains(github.event.head_commit.message, 'ci skip')"
+    name: build (${{ matrix.python-version }}, ${{ matrix.platform.name }})
+    runs-on: ${{ matrix.platform.os }}
     strategy:
-      max-parallel: 6
+      max-parallel: 9
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest", "macos-latest"]
-        python-version: ["3.7", "3.8", "3.9"]
+        python-version: ["3.8", "3.9"]
+        platform:
+          - {
+              name: "windows",
+              os: "windows-latest",
+              shell: "pwsh"
+            }
+          - {
+              name: "linux",
+              os: "ubuntu-latest",
+              shell: "bash -l {0}"
+            }
+          - {
+              name: "macos",
+              os: "macos-latest",
+              shell: "bash -l {0}"
+            }
     environment:
       name: biosimspace-build
+    defaults:
+      run:
+        shell: ${{ matrix.platform.shell }}
     env:
       SIRE_DONT_PHONEHOME: 1
       SIRE_SILENT_PHONEHOME: 1
+      REPO: "${{ github.event.pull_request.head.repo.full_name || github.repository }}"
     steps:
       - uses: conda-incubator/setup-miniconda@v2
         with:
@@ -31,62 +55,23 @@ jobs:
           miniforge-version: latest
           miniforge-variant: Mambaforge
           use-mamba: true
-      - name: Clone repositories
-        run: |
-          git clone https://github.com/michellab/Sire
-          git clone https://github.com/michellab/BioSimSpace
-      - name: Checkout the head branch if a pull request
-        run: |
-          cd BioSimSpace
-          git checkout "$HEAD_BRANCH"
-        env:
-          HEAD_BRANCH: ${{ github.head_ref }}
-        if: github.event_name == 'pull_request'
-      - name: Setup Conda
-        shell: bash -l {0}
-        run: mamba install -y -c conda-forge boa anaconda-client
-      - name: Update Conda recipe
-        run: BioSimSpace/actions/update_recipe.sh
-        env:
-          BSS_SRC_DIR: ${{ github.workspace }}/BioSimSpace
-          SIRE_SRC_DIR: ${{ github.workspace }}/Sire
-      - name: Build Conda package
-        shell: bash -l {0}
-        run: conda mambabuild -c conda-forge -c michellab/label/dev BioSimSpace/recipes/biosimspace
-      - name: Upload Conda package
-        shell: bash -l {0}
-        run: BioSimSpace/actions/upload_package.sh
-        env:
-          SRC_DIR: ${{ github.workspace }}/BioSimSpace
-          ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+#
+      - name: Clone the devel branch (push to devel)
+        run: git clone https://github.com/${{ env.REPO }}
         if: github.event_name != 'pull_request'
-      - name: Build documentation
-        shell: bash -l {0}
-        run: |
-          conda create -n bss_doc -c conda-forge -c file://"$CONDA_PREFIX"/conda-bld -c michellab/label/dev python="$PYTHON_VERSION" biosimspace
-          conda activate bss_doc
-          pip install docutils==0.17.1 sphinx==2.2.2 sphinx_issues sphinx_rtd_theme sphinxcontrib-youtube==0.1.2 jinja2==3.0.2
-          cp BioSimSpace/actions/youtube.py "$CONDA_PREFIX"/lib/python3.7/site-packages/sphinxcontrib/youtube
-          BioSimSpace/actions/inject_force_fields.sh
-          cd BioSimSpace/doc
-          PYTHONPATH="$GITHUB_WORKSPACE"/BioSimSpace/python SPHINXBUILD="$CONDA_PREFIX"/bin/sphinx-build make html
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          SRC_DIR: ${{ github.workspace }}/BioSimSpace
-        if: github.event_name == 'push' && matrix.python-version == 3.7 && matrix.os == 'ubuntu-latest'
-      - name: Update website
-        run: |
-          git clone https://github.com/michellab/BioSimSpaceWebsite
-          cd BioSimSpaceWebsite
-          cp -a "$GITHUB_WORKSPACE"/BioSimSpace/doc/build/html/* docs
-          git config user.name "BioSimSpaceBot"
-          git config user.email "$EMAIL"
-          git add docs
-          if ! git diff-index --quiet HEAD; then
-            git commit -a -m "Updating website."
-            "$GITHUB_WORKSPACE"/BioSimSpace/actions/push_changes.sh
-          fi
-        env:
-          EMAIL: ${{ secrets.EMAIL }}
-          WEBSITE_TOKEN: ${{ secrets.WEBSITE_TOKEN }}
-        if: github.event_name == 'push' && matrix.python-version == 3.7 && matrix.os == 'ubuntu-latest'
+#
+      - name: Clone the feature branch (pull request to devel)
+        run: git clone -b ${{ github.head_ref }} --single-branch https://github.com/${{ env.REPO }}
+        if: github.event_name == 'pull_request'
+#
+      - name: Setup Conda
+        run: mamba install -y -c conda-forge boa anaconda-client packaging=21 pip-requirements-parser
+#
+      - name: Update Conda recipe
+        run: python ${{ github.workspace }}/BioSimSpace/actions/update_recipe.py
+#
+      - name: Prepare build location
+        run: mkdir ${{ github.workspace }}/build
+#
+      - name: Build Conda package using mamba build
+        run: conda mambabuild -c conda-forge -c openbiosim/label/dev ${{ github.workspace }}/BioSimSpace/recipes/biosimspace

@@ -1,13 +1,13 @@
 ######################################################################
 # BioSimSpace: Making biomolecular simulation a breeze!
 #
-# Copyright: 2017-2022
+# Copyright: 2017-2023
 #
 # Authors: Lester Hedges <lester.hedges@gmail.com>
 #
 # BioSimSpace is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 2 of the License, or
+# the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -19,9 +19,7 @@
 # along with BioSimSpace. If not, see <http://www.gnu.org/licenses/>.
 #####################################################################
 
-"""
-Functionality for running simulations with SOMD.
-"""
+"""Functionality for running simulations with SOMD."""
 
 __author__ = "Lester Hedges"
 __email__ = "lester.hedges@gmail.com"
@@ -31,18 +29,20 @@ __all__ = ["Somd"]
 from .._Utils import _try_import
 
 import os as _os
+
 _pygtail = _try_import("pygtail")
+import glob as _glob
 import random as _random
 import string as _string
 import sys as _sys
 import timeit as _timeit
 import warnings as _warnings
 
-from Sire import Base as _SireBase
-from Sire import CAS as _SireCAS
-from Sire import IO as _SireIO
-from Sire import MM as _SireMM
-from Sire import Mol as _SireMol
+from sire.legacy import Base as _SireBase
+from sire.legacy import CAS as _SireCAS
+from sire.legacy import IO as _SireIO
+from sire.legacy import MM as _SireMM
+from sire.legacy import Mol as _SireMol
 
 from .. import _isVerbose
 from .._Exceptions import IncompatibleError as _IncompatibleError
@@ -57,64 +57,84 @@ from .. import _Utils
 
 from . import _process
 
+
 class Somd(_process.Process):
     """A class for running simulations using SOMD."""
 
     # Dictionary of platforms and their OpenMM keyword.
-    _platforms = { "CPU"    : "CPU",
-                   "CUDA"   : "CUDA",
-                   "OPENCL" : "OpenCL" }
+    _platforms = {"CPU": "CPU", "CUDA": "CUDA", "OPENCL": "OpenCL"}
 
-    def __init__(self, system, protocol, exe=None, name="somd",
-            platform="CPU", work_dir=None, seed=None, extra_options=None,
-            extra_lines=None, property_map={}, restraint=None):
-        """Constructor.
+    def __init__(
+        self,
+        system,
+        protocol,
+        exe=None,
+        name="somd",
+        platform="CPU",
+        work_dir=None,
+        seed=None,
+        extra_options=None,
+        extra_lines=None,
+        property_map={},
+    ):
+        """
+        Constructor.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           system : :class:`System <BioSimSpace._SireWrappers.System>`
-               The molecular system.
+        system : :class:`System <BioSimSpace._SireWrappers.System>`
+            The molecular system.
 
-           protocol : :class:`Protocol <BioSimSpace.Protocol>`
-               The protocol for the SOMD process.
+        protocol : :class:`Protocol <BioSimSpace.Protocol>`
+            The protocol for the SOMD process.
 
-           exe : str
-               The full path to the SOMD executable.
+        exe : str
+            The full path to the SOMD executable.
 
-           name : str
-               The name of the process.
+        name : str
+            The name of the process.
 
-           platform : str
-               The platform for the simulation: "CPU", "CUDA", or "OPENCL".
+        platform : str
+            The platform for the simulation: "CPU", "CUDA", or "OPENCL".
 
-           work_dir :
-               The working directory for the process.
+        work_dir :
+            The working directory for the process.
 
-           seed : int
-               A random number seed. Note that SOMD only uses a seed for
-               FreeEnergy protocols. The seed should only be used for debugging
-               purposes since SOMD uses the same seed for each Monte Carlo
-               cycle.
+        seed : int
+            A random number seed. Note that SOMD only uses a seed for
+            FreeEnergy protocols. The seed should only be used for debugging
+            purposes since SOMD uses the same seed for each Monte Carlo
+            cycle.
 
-           extra_options : dict
-               A dictionary containing extra options. Overrides the ones generated from the protocol.
+        extra_options : dict
+            A dictionary containing extra options. Overrides the ones generated from the protocol.
 
-           extra_lines : list
-               A list of extra lines to be put at the end of the script.
+        extra_lines : list
+            A list of extra lines to be put at the end of the script.
 
-           property_map : dict
-               A dictionary that maps system "properties" to their user defined
-               values. This allows the user to refer to properties with their
-               own naming scheme, e.g. { "charge" : "my-charge" }
-           
-           restraint : :class:`Restraint <BioSimSpace.FreeEnergy.Restraint>`
-               The Restraint object that contains information for the ABFE
-               calculations.
+        property_map : dict
+            A dictionary that maps system "properties" to their user defined
+            values. This allows the user to refer to properties with their
+            own naming scheme, e.g. { "charge" : "my-charge" }
+
+        restraint : :class:`Restraint <BioSimSpace.FreeEnergy.Restraint>`
+            The Restraint object that contains information for the ABFE
+            calculations.
         """
 
         # Call the base class constructor.
-        super().__init__(system, protocol, name, work_dir, seed, extra_options, extra_lines, property_map, restraint)
+        super().__init__(
+            system,
+            protocol,
+            name,
+            work_dir,
+            seed,
+            extra_options,
+            extra_lines,
+            property_map,
+            restraint
+        )
 
         # Set the package name.
         self._package_name = "SOMD"
@@ -142,8 +162,12 @@ class Somd(_process.Process):
                 somd_path = _SireBase.getBinDir()
                 somd_suffix = ""
             else:
-                somd_path = _os.path.join(_os.path.normpath(_SireBase.getShareDir()), "scripts")
-                somd_interpreter = _os.path.join(_os.path.normpath(_SireBase.getBinDir()), "sire_python.exe")
+                somd_path = _os.path.join(
+                    _os.path.normpath(_SireBase.getShareDir()), "scripts"
+                )
+                somd_interpreter = _os.path.join(
+                    _os.path.normpath(_SireBase.getBinDir()), "sire_python.exe"
+                )
                 somd_suffix = ".py"
             if isinstance(self._protocol, _Protocol._FreeEnergyMixin):
                 somd_exe = "somd-freenrg"
@@ -151,7 +175,9 @@ class Somd(_process.Process):
                 somd_exe = "somd"
             somd_exe = _os.path.join(somd_path, somd_exe) + somd_suffix
             if not _os.path.isfile(somd_exe):
-                raise _MissingSoftwareError("'Cannot find SOMD executable in expected location: '%s'" % somd_exe)
+                raise _MissingSoftwareError(
+                    "'Cannot find SOMD executable in expected location: '%s'" % somd_exe
+                )
             if _sys.platform != "win32":
                 self._exe = somd_exe
             else:
@@ -202,17 +228,35 @@ class Somd(_process.Process):
 
     def __str__(self):
         """Return a human readable string representation of the object."""
-        return "<BioSimSpace.Process.%s: system=%s, protocol=%s, exe='%s', name='%s', platform='%s', work_dir='%s' seed=%s>" \
-            % (self.__class__.__name__, str(self._system), self._protocol.__repr__(),
-               self._exe + ("%s " % self._script if self._script else ""),
-               self._name, self._platform, self._work_dir, self._seed)
+        return (
+            "<BioSimSpace.Process.%s: system=%s, protocol=%s, exe='%s', name='%s', platform='%s', work_dir='%s' seed=%s>"
+            % (
+                self.__class__.__name__,
+                str(self._system),
+                self._protocol.__repr__(),
+                self._exe + ("%s " % self._script if self._script else ""),
+                self._name,
+                self._platform,
+                self._work_dir,
+                self._seed,
+            )
+        )
 
     def __repr__(self):
         """Return a string showing how to instantiate the object."""
-        return "BioSimSpace.Process.%s(%s, %s, exe='%s', name='%s', platform='%s', work_dir='%s', seed=%s)" \
-            % (self.__class__.__name__, str(self._system), self._protocol.__repr__(),
-               self._exe + ("%s " % self._script if self._script else ""),
-               self._name, self._platform, self._work_dir, self._seed)
+        return (
+            "BioSimSpace.Process.%s(%s, %s, exe='%s', name='%s', platform='%s', work_dir='%s', seed=%s)"
+            % (
+                self.__class__.__name__,
+                str(self._system),
+                self._protocol.__repr__(),
+                self._exe + ("%s " % self._script if self._script else ""),
+                self._name,
+                self._platform,
+                self._work_dir,
+                self._seed,
+            )
+        )
 
     def _setup(self):
         """Setup the input files and working directory ready for simulation."""
@@ -247,8 +291,12 @@ class Somd(_process.Process):
 
                 # Write the perturbation file and get the molecule corresponding
                 # to the lambda = 0 state.
-                pert_mol = _to_pert_file(pert_mol, self._pert_file, property_map=self._property_map,
-                                         perturbation_type=self._protocol.getPerturbationType())
+                pert_mol = _to_pert_file(
+                    pert_mol,
+                    self._pert_file,
+                    property_map=self._property_map,
+                    perturbation_type=self._protocol.getPerturbationType(),
+                )
 
                 self._input_files.append(self._pert_file)
 
@@ -276,6 +324,14 @@ class Somd(_process.Process):
 
                 # Remove the decoupled molecule.
                 system.updateMolecules(decoupled_mol)
+            
+            else:
+                raise ValueError(
+                    "'BioSimSpace.Protocol.FreeEnergy' requires a single "
+                    "perturbable or decoupled molecule. The system has"
+                    f"{system.nPerturbableMolecules()} perturbable molecules and "
+                    f"{system.nDecoupledMolecules()} decoupled molecules."
+                )
 
         # If this is a different protocol and the system still contains a
         # perturbable molecule, then we'll warn the user and simulate the
@@ -288,8 +344,8 @@ class Somd(_process.Process):
 
         # RST file (coordinates).
         try:
-            rst = _SireIO.AmberRst7(system._sire_object, self._property_map)
-            rst.writeToFile(self._rst_file)
+            file = _os.path.splitext(self._rst_file)[0]
+            _IO.saveMolecules(file, system, "rst7", property_map=self._property_map)
         except Exception as e:
             msg = "Failed to write system to 'RST7' format."
             if _isVerbose():
@@ -299,8 +355,8 @@ class Somd(_process.Process):
 
         # PRM file (topology).
         try:
-            prm = _SireIO.AmberPrm(system._sire_object, self._property_map)
-            prm.writeToFile(self._top_file)
+            file = _os.path.splitext(self._top_file)[0]
+            _IO.saveMolecules(file, system, "prm7", property_map=self._property_map)
         except Exception as e:
             msg = "Failed to write system to 'PRM7' format."
             if _isVerbose():
@@ -346,10 +402,15 @@ class Somd(_process.Process):
                     gpu_id = int(_os.environ.get("CUDA_VISIBLE_DEVICES").split(",")[0])
                 except:
                     pass
-            config_options["gpu"] = gpu_id                               # GPU device ID.
+            config_options["gpu"] = gpu_id  # GPU device ID.
 
-        if not isinstance(self._protocol, (_Protocol.Minimisation, _Protocol.Equilibration, _Protocol.Production)):
-            raise _IncompatibleError("Unsupported protocol: '%s'" % self._protocol.__class__.__name__)
+        if not isinstance(
+            self._protocol,
+            (_Protocol.Minimisation, _Protocol.Equilibration, _Protocol.Production),
+        ):
+            raise _IncompatibleError(
+                "Unsupported protocol: '%s'" % self._protocol.__class__.__name__
+            )
 
         # Set the configuration.
         config = _Protocol.ConfigFactory(_System(self._renumbered_system), self._protocol)
@@ -373,21 +434,22 @@ class Somd(_process.Process):
         self.clearArgs()
 
         # Add the default arguments.
-        self.setArg("-c", "%s.rst7" % self._name)                       # Coordinate restart file.
-        self.setArg("-t", "%s.prm7" % self._name)                       # Topology file.
+        self.setArg("-c", "%s.rst7" % self._name)  # Coordinate restart file.
+        self.setArg("-t", "%s.prm7" % self._name)  # Topology file.
         if isinstance(self._protocol, _Protocol._FreeEnergyMixin):
-            self.setArg("-m", "%s.pert" % self._name)                   # Perturbation file.
-        self.setArg("-C", "%s.cfg" % self._name)                        # Config file.
-        self.setArg("-p", self._platform)                               # Simulation platform.
+            self.setArg("-m", "%s.pert" % self._name)  # Perturbation file.
+        self.setArg("-C", "%s.cfg" % self._name)  # Config file.
+        self.setArg("-p", self._platform)  # Simulation platform.
 
     def start(self):
-        """Start the SOMD process.
+        """
+        Start the SOMD process.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           process : :class:`Process.Somd <BioSimSpace.Process.Somd>`
-               A handle to the running process.
+        process : :class:`Process.Somd <BioSimSpace.Process.Somd>`
+            A handle to the running process.
         """
 
         # The process is currently queued.
@@ -404,13 +466,11 @@ class Somd(_process.Process):
 
         # Run the process in the working directory.
         with _Utils.cd(self._work_dir):
-
             # Create the arguments string list.
             args = self.getArgStringList()
 
             # Write the command-line process to a README.txt file.
             with open("README.txt", "w") as f:
-
                 # Set the command-line string.
                 self._command = "%s " % self._exe + self.getArgString()
 
@@ -422,8 +482,9 @@ class Somd(_process.Process):
             self._timer = _timeit.default_timer()
 
             # Start the simulation.
-            self._process = _SireBase.Process.run(self._exe, args,
-                "%s.out"  % self._name, "%s.out"  % self._name)
+            self._process = _SireBase.Process.run(
+                self._exe, args, "%s.out" % self._name, "%s.out" % self._name
+            )
 
             # SOMD uses the stdout stream for all output.
             with open(_os.path.basename(self._stderr_file), "w") as f:
@@ -432,19 +493,20 @@ class Somd(_process.Process):
         return self
 
     def getSystem(self, block="AUTO"):
-        """Get the latest molecular system.
+        """
+        Get the latest molecular system.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           block : bool
-               Whether to block until the process has finished running.
+        block : bool
+            Whether to block until the process has finished running.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           system : :class:`System <BioSimSpace._SireWrappers.System>`
-               The latest molecular system.
+        system : :class:`System <BioSimSpace._SireWrappers.System>`
+            The latest molecular system.
         """
 
         # Wait for the process to finish.
@@ -474,13 +536,14 @@ class Somd(_process.Process):
             # Update the coordinates and velocities and return a mapping between
             # the molecule indices in the two systems.
             sire_system, mapping = _SireIO.updateCoordinatesAndVelocities(
-                    old_system._sire_object,
-                    self._renumbered_system,
-                    new_system._sire_object,
-                    self._mapping,
-                    is_lambda1,
-                    self._property_map,
-                    self._property_map)
+                old_system._sire_object,
+                self._renumbered_system,
+                new_system._sire_object,
+                self._mapping,
+                is_lambda1,
+                self._property_map,
+                self._property_map,
+            )
 
             # Update the underlying Sire object.
             old_system._sire_object = sire_system
@@ -492,7 +555,9 @@ class Somd(_process.Process):
             # Update the box information in the original system.
             if "space" in new_system._sire_object.propertyKeys():
                 box = new_system._sire_object.property("space")
-                old_system._sire_object.setProperty(self._property_map.get("space", "space"), box)
+                old_system._sire_object.setProperty(
+                    self._property_map.get("space", "space"), box
+                )
 
             return old_system
 
@@ -500,30 +565,32 @@ class Somd(_process.Process):
             return None
 
     def getCurrentSystem(self):
-        """Get the latest molecular system.
+        """
+        Get the latest molecular system.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           system : :class:`System <BioSimSpace._SireWrappers.System>`
-               The latest molecular system.
+        system : :class:`System <BioSimSpace._SireWrappers.System>`
+            The latest molecular system.
         """
         return self.getSystem(block=False)
 
     def getTrajectory(self, block="AUTO"):
-        """Return a trajectory object.
+        """
+        Return a trajectory object.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           block : bool
-               Whether to block until the process has finished running.
+        block : bool
+            Whether to block until the process has finished running.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           trajectory : :class:`Trajectory <BioSimSpace.Trajectory.trajectory>`
-               The latest trajectory object.
+        trajectory : :class:`Trajectory <BioSimSpace.Trajectory.trajectory>`
+            The latest trajectory object.
         """
 
         # Wait for the process to finish.
@@ -543,26 +610,32 @@ class Somd(_process.Process):
             return None
 
     def getFrame(self, index):
-        """Return a specific trajectory frame.
+        """
+        Return a specific trajectory frame.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           index : int
-               The index of the frame.
+        index : int
+            The index of the frame.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           frame : :class:`System <BioSimSpace._SireWrappers.System>`
-               The System object of the corresponding frame.
+        frame : :class:`System <BioSimSpace._SireWrappers.System>`
+            The System object of the corresponding frame.
         """
 
         if not type(index) is int:
             raise TypeError("'index' must be of type 'int'")
 
-        max_index = int((self._protocol.getRunTime() / self._protocol.getTimeStep())
-                  / self._protocol.getRestartInterval()) - 1
+        max_index = (
+            int(
+                (self._protocol.getRunTime() / self._protocol.getTimeStep())
+                / self._protocol.getRestartInterval()
+            )
+            - 1
+        )
 
         if index < 0 or index > max_index:
             raise ValueError(f"'index' must be in range [0, {max_index}].")
@@ -574,9 +647,7 @@ class Somd(_process.Process):
             else:
                 is_lambda1 = False
 
-            new_system =  _Trajectory.getFrame(self._traj_file,
-                                               self._top_file,
-                                               index)
+            new_system = _Trajectory.getFrame(self._traj_file, self._top_file, index)
 
             # Copy the new coordinates back into the original system.
             old_system = self._system.copy()
@@ -584,13 +655,14 @@ class Somd(_process.Process):
             # Update the coordinates and velocities and return a mapping between
             # the molecule numbers in the two systems.
             sire_system, mapping = _SireIO.updateCoordinatesAndVelocities(
-                    old_system._sire_object,
-                    self._renumbered_system,
-                    new_system._sire_object,
-                    self._mapping,
-                    is_lambda1,
-                    self._property_map,
-                    self._property_map)
+                old_system._sire_object,
+                self._renumbered_system,
+                new_system._sire_object,
+                self._mapping,
+                is_lambda1,
+                self._property_map,
+                self._property_map,
+            )
 
             # Update the underlying Sire object.
             old_system._sire_object = sire_system
@@ -602,7 +674,9 @@ class Somd(_process.Process):
             # Update the box information in the original system.
             if "space" in new_system._sire_object.propertyKeys():
                 box = new_system._sire_object.property("space")
-                old_system._sire_object.setProperty(self._property_map.get("space", "space"), box)
+                old_system._sire_object.setProperty(
+                    self._property_map.get("space", "space"), box
+                )
 
             return old_system
 
@@ -610,22 +684,23 @@ class Somd(_process.Process):
             return None
 
     def getTime(self, time_series=False, block="AUTO"):
-        """Get the time (in nanoseconds).
+        """
+        Get the time (in nanoseconds).
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           time_series : bool
-               Whether to return a list of time series records.
+        time_series : bool
+            Whether to return a list of time series records.
 
-           block : bool
-               Whether to block until the process has finished running.
+        block : bool
+            Whether to block until the process has finished running.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           time : :class:`Time <BioSimSpace.Types.Time>`
-               The current simulation time in nanoseconds.
+        time : :class:`Time <BioSimSpace.Types.Time>`
+            The current simulation time in nanoseconds.
         """
 
         # Warn the user if the process has exited with an error.
@@ -644,7 +719,14 @@ class Somd(_process.Process):
 
         try:
             # Create the list of time records.
-            times = [(self._protocol.getRestartInterval() * self._protocol.getTimeStep().to_default_unit()) * x for x in range(1, num_frames + 1)]
+            times = [
+                (
+                    self._protocol.getRestartInterval()
+                    * self._protocol.getTimeStep().to_default_unit()
+                )
+                * x
+                for x in range(1, num_frames + 1)
+            ]
         except:
             return None
 
@@ -654,39 +736,41 @@ class Somd(_process.Process):
             return times[-1]
 
     def getCurrentTime(self, time_series=False):
-        """Get the current time (in nanoseconds).
+        """
+        Get the current time (in nanoseconds).
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           time_series : bool
-               Whether to return a list of time series records.
+        time_series : bool
+            Whether to return a list of time series records.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           time : :class:`Time <BioSimSpace.Types.Time>`
-               The current simulation time in nanoseconds.
+        time : :class:`Time <BioSimSpace.Types.Time>`
+            The current simulation time in nanoseconds.
         """
         return self.getTime(time_series, block=False)
 
     def getGradient(self, time_series=False, block="AUTO"):
-        """Get the free energy gradient.
+        """
+        Get the free energy gradient.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           time_series : bool
-               Whether to return a list of time series records.
+        time_series : bool
+            Whether to return a list of time series records.
 
-           block : bool
-               Whether to block until the process has finished running.
+        block : bool
+            Whether to block until the process has finished running.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           gradient : float
-               The free energy gradient.
+        gradient : float
+            The free energy gradient.
         """
 
         # Wait for the process to finish.
@@ -718,19 +802,20 @@ class Somd(_process.Process):
             return self._gradients[-1]
 
     def getCurrentGradient(self, time_series=False):
-        """Get the current free energy gradient.
+        """
+        Get the current free energy gradient.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           time_series : bool
-               Whether to return a list of time series records.
+        time_series : bool
+            Whether to return a list of time series records.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           gradient : float
-               The current free energy gradient.
+        gradient : float
+            The current free energy gradient.
         """
         return self.getGradient(time_series, block=False)
 
@@ -750,14 +835,13 @@ class Somd(_process.Process):
         if _os.path.isfile(file):
             _os.remove(file)
 
-        files = _IO.glob("%s/traj*.dcd" % self._work_dir)
+        files = _glob.glob("%s/traj*.dcd" % self._work_dir)
         for file in files:
             if _os.path.isfile(file):
                 _os.remove(file)
 
         # Additional files for free energy simulations.
         if isinstance(self._protocol, _Protocol._FreeEnergyMixin):
-
             file = "%s/gradients.dat" % self._work_dir
             if _os.path.isfile(file):
                 _os.remove(file)
@@ -766,63 +850,75 @@ class Somd(_process.Process):
             if _os.path.isfile(file):
                 _os.remove(file)
 
-def _to_pert_file(molecule, filename="MORPH.pert", zero_dummy_dihedrals=False,
-        zero_dummy_impropers=False, print_all_atoms=False, property_map={},
-        perturbation_type="full"):
-    """Write a perturbation file for a perturbable molecule.
 
-        Parameters
-        ----------
+def _to_pert_file(
+    molecule,
+    filename="MORPH.pert",
+    zero_dummy_dihedrals=False,
+    zero_dummy_impropers=False,
+    print_all_atoms=False,
+    property_map={},
+    perturbation_type="full",
+):
+    """
+    Write a perturbation file for a perturbable molecule.
 
-        molecule : :class:`System <BioSimSpace._SireWrappers.Molecule>`
-            The perturbable molecule.
+    Parameters
+    ----------
 
-        filename : str
-            The name of the perturbation file.
+    molecule : :class:`System <BioSimSpace._SireWrappers.Molecule>`
+        The perturbable molecule.
 
-        zero_dummy_dihedrals : bool
-            Whether to zero the barrier height for dihedrals involving
-            dummy atoms.
+    filename : str
+        The name of the perturbation file.
 
-        zero_dummy_impropers : bool
-            Whether to zero the barrier height for impropers involving
-            dummy atoms.
+    zero_dummy_dihedrals : bool
+        Whether to zero the barrier height for dihedrals involving
+        dummy atoms.
 
-        print_all_atoms : bool
-            Whether to print all atom records to the pert file, not just
-            the atoms that are perturbed.
+    zero_dummy_impropers : bool
+        Whether to zero the barrier height for impropers involving
+        dummy atoms.
 
-        property_map : dict
-            A dictionary that maps system "properties" to their user defined
-            values. This allows the user to refer to properties with their
-            own naming scheme, e.g. { "charge" : "my-charge" }
+    print_all_atoms : bool
+        Whether to print all atom records to the pert file, not just
+        the atoms that are perturbed.
 
-        perturbation_type : str
-            The type of perturbation to perform. Options are:
-            "full" : A full perturbation of all terms (default option).
-            "discharge_soft" : Perturb all discharging soft atom charge terms (i.e. value->0.0).
-            "vanish_soft" : Perturb all vanishing soft atom LJ terms (i.e. value->0.0).
-            "flip" : Perturb all hard atom terms as well as bonds/angles.
-            "grow_soft" : Perturb all growing soft atom LJ terms (i.e. 0.0->value).
-            "charge_soft" : Perturb all charging soft atom LJ terms (i.e. 0.0->value).
-            "restraint" : Perturb the receptor-ligand restraint strength by linearly 
-                          scaling the force constants (0.0->value).
+    property_map : dict
+        A dictionary that maps system "properties" to their user defined
+        values. This allows the user to refer to properties with their
+        own naming scheme, e.g. { "charge" : "my-charge" }
 
-        Returns
-        -------
+    perturbation_type : str
+        The type of perturbation to perform. Options are:
+        "full" : A full perturbation of all terms (default option).
+        "discharge_soft" : Perturb all discharging soft atom charge terms (i.e. value->0.0).
+        "vanish_soft" : Perturb all vanishing soft atom LJ terms (i.e. value->0.0).
+        "flip" : Perturb all hard atom terms as well as bonds/angles.
+        "grow_soft" : Perturb all growing soft atom LJ terms (i.e. 0.0->value).
+        "charge_soft" : Perturb all charging soft atom LJ terms (i.e. 0.0->value).
+        "restraint" : Perturb the receptor-ligand restraint strength by linearly 
+                        scaling the force constants (0.0->value).
 
-        molecule : :class:`System <BioSimSpace._SireWrappers.Molecule>`
-            The molecule with properties corresponding to the lamda = 0 state.
+    Returns
+    -------
+
+    molecule : :class:`System <BioSimSpace._SireWrappers.Molecule>`
+        The molecule with properties corresponding to the lamda = 0 state.
     """
     if not isinstance(molecule, _Molecule):
-        raise TypeError("'molecule' must be of type 'BioSimSpace._SireWrappers.Molecule'")
+        raise TypeError(
+            "'molecule' must be of type 'BioSimSpace._SireWrappers.Molecule'"
+        )
 
     if not (molecule._is_perturbable or molecule.isDecoupled):
         raise _IncompatibleError("'molecule' isn't perturbable or marked for decoupling."
                                  " Cannot write perturbation file!")
 
     if not molecule._sire_object.property("forcefield0").isAmberStyle():
-        raise _IncompatibleError("Can only write perturbation files for AMBER style force fields.")
+        raise _IncompatibleError(
+            "Can only write perturbation files for AMBER style force fields."
+        )
 
     if not isinstance(zero_dummy_dihedrals, bool):
         raise TypeError("'zero_dummy_dihedrals' must be of type 'bool'")
@@ -851,7 +947,9 @@ def _to_pert_file(molecule, filename="MORPH.pert", zero_dummy_dihedrals=False,
                                   "restraint"]
 
     if perturbation_type not in allowed_perturbation_types:
-        raise ValueError(f"'perturbation_type' must be one of: {allowed_perturbation_types}")
+        raise ValueError(
+            f"'perturbation_type' must be one of: {allowed_perturbation_types}"
+        )
 
     # Seed the random number generator so that we get reproducible atom names.
     # This is helpful when debugging since we can directly compare pert files.
@@ -866,9 +964,11 @@ def _to_pert_file(molecule, filename="MORPH.pert", zero_dummy_dihedrals=False,
     # Perturbed atoms change one of the following properties:
     # "ambertype", "LJ", or "charge".
     for atom in mol.atoms():
-        if atom.property("ambertype0") != atom.property("ambertype1") or \
-           atom.property("LJ0") != atom.property("LJ1")               or \
-           atom.property("charge0") != atom.property("charge1"):
+        if (
+            atom.property("ambertype0") != atom.property("ambertype1")
+            or atom.property("LJ0") != atom.property("LJ1")
+            or atom.property("charge0") != atom.property("charge1")
+        ):
             pert_idxs.append(atom.index())
 
     # The pert file uses atom names for identification purposes. This means
@@ -886,12 +986,11 @@ def _to_pert_file(molecule, filename="MORPH.pert", zero_dummy_dihedrals=False,
 
     # If there are duplicate names, then we need to rename the atoms.
     if sum(atom_names.values()) > len(names):
-
         # Make the molecule editable.
         edit_mol = mol.edit()
 
         # Create a dictionary to flag whether we've seen each atom name.
-        is_seen = { name : False for name in names }
+        is_seen = {name: False for name in names}
 
         # Tally counter for the number of dummy atoms.
         num_dummy = 1
@@ -947,9 +1046,11 @@ def _to_pert_file(molecule, filename="MORPH.pert", zero_dummy_dihedrals=False,
 
                         # Abort if we've tried more than 100 times.
                         if num_attempts == 100:
-                            raise RuntimeError("Error while writing SOMD pert file. "
-                                               "Unable to generate a unique suffix for "
-                                               "atom name: '%s'" % new_name)
+                            raise RuntimeError(
+                                "Error while writing SOMD pert file. "
+                                "Unable to generate a unique suffix for "
+                                "atom name: '%s'" % new_name
+                            )
 
                     # Append the suffix to the name and store in the set of seen names.
                     new_name = new_name + suffix
@@ -978,48 +1079,72 @@ def _to_pert_file(molecule, filename="MORPH.pert", zero_dummy_dihedrals=False,
         file.write("molecule LIG\n")
 
         if print_all_atoms:
-            raise NotImplementedError("print_all_atoms is not allowed during dev of multistep protocol.")
+            raise NotImplementedError(
+                "print_all_atoms is not allowed during dev of multistep protocol."
+            )
 
         # 1) Atoms.
 
         def atom_sorting_criteria(atom):
-            LJ0 = atom.property("LJ0");
-            LJ1 = atom.property("LJ1");
-            return (atom.name().value(),
-                    atom.property("ambertype0"),
-                    atom.property("ambertype1"),
-                    LJ0.sigma().value(),
-                    LJ1.sigma().value(),
-                    LJ0.epsilon().value(),
-                    LJ1.epsilon().value(),
-                    atom.property("charge0").value(),
-                    atom.property("charge1").value())
+            LJ0 = atom.property("LJ0")
+            LJ1 = atom.property("LJ1")
+            return (
+                atom.name().value(),
+                atom.property("ambertype0"),
+                atom.property("ambertype1"),
+                LJ0.sigma().value(),
+                LJ1.sigma().value(),
+                LJ0.epsilon().value(),
+                LJ1.epsilon().value(),
+                atom.property("charge0").value(),
+                atom.property("charge1").value(),
+            )
 
         if perturbation_type == "full":
             if print_all_atoms:
-                for atom in sorted(mol.atoms(), key=lambda atom: atom_sorting_criteria(atom)):
+                for atom in sorted(
+                    mol.atoms(), key=lambda atom: atom_sorting_criteria(atom)
+                ):
                     # Start atom record.
                     file.write("    atom\n")
 
                     # Get the initial/final Lennard-Jones properties.
-                    LJ0 = atom.property("LJ0");
-                    LJ1 = atom.property("LJ1");
+                    LJ0 = atom.property("LJ0")
+                    LJ1 = atom.property("LJ1")
 
                     # Atom data.
                     file.write("        name           %s\n" % atom.name().value())
-                    file.write("        initial_type   %s\n" % atom.property("ambertype0"))
-                    file.write("        final_type     %s\n" % atom.property("ambertype1"))
-                    file.write("        initial_LJ     %.5f %.5f\n" % (LJ0.sigma().value(), LJ0.epsilon().value()))
-                    file.write("        final_LJ       %.5f %.5f\n" % (LJ1.sigma().value(), LJ1.epsilon().value()))
-                    file.write("        initial_charge %.5f\n" % atom.property("charge0").value())
-                    file.write("        final_charge   %.5f\n" % atom.property("charge1").value())
+                    file.write(
+                        "        initial_type   %s\n" % atom.property("ambertype0")
+                    )
+                    file.write(
+                        "        final_type     %s\n" % atom.property("ambertype1")
+                    )
+                    file.write(
+                        "        initial_LJ     %.5f %.5f\n"
+                        % (LJ0.sigma().value(), LJ0.epsilon().value())
+                    )
+                    file.write(
+                        "        final_LJ       %.5f %.5f\n"
+                        % (LJ1.sigma().value(), LJ1.epsilon().value())
+                    )
+                    file.write(
+                        "        initial_charge %.5f\n"
+                        % atom.property("charge0").value()
+                    )
+                    file.write(
+                        "        final_charge   %.5f\n"
+                        % atom.property("charge1").value()
+                    )
 
                     # End atom record.
                     file.write("    endatom\n")
 
             # Only print records for the atoms that are perturbed.
             else:
-                for idx in sorted(pert_idxs, key=lambda idx: atom_sorting_criteria(mol.atom(idx))):
+                for idx in sorted(
+                    pert_idxs, key=lambda idx: atom_sorting_criteria(mol.atom(idx))
+                ):
                     # Get the perturbed atom.
                     atom = mol.atom(idx)
 
@@ -1027,17 +1152,33 @@ def _to_pert_file(molecule, filename="MORPH.pert", zero_dummy_dihedrals=False,
                     file.write("    atom\n")
 
                     # Get the initial/final Lennard-Jones properties.
-                    LJ0 = atom.property("LJ0");
-                    LJ1 = atom.property("LJ1");
+                    LJ0 = atom.property("LJ0")
+                    LJ1 = atom.property("LJ1")
 
                     # Atom data.
                     file.write("        name           %s\n" % atom.name().value())
-                    file.write("        initial_type   %s\n" % atom.property("ambertype0"))
-                    file.write("        final_type     %s\n" % atom.property("ambertype1"))
-                    file.write("        initial_LJ     %.5f %.5f\n" % (LJ0.sigma().value(), LJ0.epsilon().value()))
-                    file.write("        final_LJ       %.5f %.5f\n" % (LJ1.sigma().value(), LJ1.epsilon().value()))
-                    file.write("        initial_charge %.5f\n" % atom.property("charge0").value())
-                    file.write("        final_charge   %.5f\n" % atom.property("charge1").value())
+                    file.write(
+                        "        initial_type   %s\n" % atom.property("ambertype0")
+                    )
+                    file.write(
+                        "        final_type     %s\n" % atom.property("ambertype1")
+                    )
+                    file.write(
+                        "        initial_LJ     %.5f %.5f\n"
+                        % (LJ0.sigma().value(), LJ0.epsilon().value())
+                    )
+                    file.write(
+                        "        final_LJ       %.5f %.5f\n"
+                        % (LJ1.sigma().value(), LJ1.epsilon().value())
+                    )
+                    file.write(
+                        "        initial_charge %.5f\n"
+                        % atom.property("charge0").value()
+                    )
+                    file.write(
+                        "        final_charge   %.5f\n"
+                        % atom.property("charge1").value()
+                    )
 
                     # End atom record.
                     file.write("    endatom\n")
@@ -1087,17 +1228,21 @@ def _to_pert_file(molecule, filename="MORPH.pert", zero_dummy_dihedrals=False,
         else:
             # Given multistep protocol:
             if print_all_atoms:
-                raise NotImplementedError("print_all_atoms in multistep approach is not yet implemented.")
+                raise NotImplementedError(
+                    "print_all_atoms in multistep approach is not yet implemented."
+                )
 
-            for idx in sorted(pert_idxs, key=lambda idx: atom_sorting_criteria(mol.atom(idx))):
+            for idx in sorted(
+                pert_idxs, key=lambda idx: atom_sorting_criteria(mol.atom(idx))
+            ):
                 # Get the perturbed atom.
                 atom = mol.atom(idx)
                 # Start atom record.
                 file.write("    atom\n")
 
                 # Get the initial/final Lennard-Jones properties.
-                LJ0 = atom.property("LJ0");
-                LJ1 = atom.property("LJ1");
+                LJ0 = atom.property("LJ0")
+                LJ1 = atom.property("LJ1")
 
                 # Atom data.
                 # Get the atom types:
@@ -1106,16 +1251,18 @@ def _to_pert_file(molecule, filename="MORPH.pert", zero_dummy_dihedrals=False,
 
                 # Set LJ/charge based on requested perturbed term.
                 if perturbation_type == "discharge_soft":
-                    if (atom.property("element0") == _SireMol.Element("X") or
-                        atom.property("element1") == _SireMol.Element("X")):
-
+                    if atom.property("element0") == _SireMol.Element(
+                        "X"
+                    ) or atom.property("element1") == _SireMol.Element("X"):
                         # If perturbing TO dummy:
                         if atom.property("element1") == _SireMol.Element("X"):
-
                             atom_type1 = atom_type0
 
                             # In this step, only remove charges from soft-core perturbations.
-                            LJ0_value = LJ1_value = LJ0.sigma().value(), LJ0.epsilon().value()
+                            LJ0_value = LJ1_value = (
+                                LJ0.sigma().value(),
+                                LJ0.epsilon().value(),
+                            )
 
                             charge0_value = atom.property("charge0").value()
                             charge1_value = -0.0
@@ -1124,19 +1271,27 @@ def _to_pert_file(molecule, filename="MORPH.pert", zero_dummy_dihedrals=False,
                         else:
                             # All terms have already been perturbed in "5_grow_soft".
                             atom_type1 = atom_type0
-                            LJ0_value = LJ1_value = LJ0.sigma().value(), LJ0.epsilon().value()
-                            charge0_value = charge1_value = atom.property("charge0").value()
+                            LJ0_value = LJ1_value = (
+                                LJ0.sigma().value(),
+                                LJ0.epsilon().value(),
+                            )
+                            charge0_value = charge1_value = atom.property(
+                                "charge0"
+                            ).value()
 
                     else:
                         # If only hard atoms in perturbation, hold parameters.
                         atom_type1 = atom_type0
-                        LJ0_value = LJ1_value = LJ0.sigma().value(), LJ0.epsilon().value()
+                        LJ0_value = LJ1_value = (
+                            LJ0.sigma().value(),
+                            LJ0.epsilon().value(),
+                        )
                         charge0_value = charge1_value = atom.property("charge0").value()
 
                 elif perturbation_type == "vanish_soft":
-                    if (atom.property("element0") == _SireMol.Element("X") or
-                        atom.property("element1") == _SireMol.Element("X")):
-
+                    if atom.property("element0") == _SireMol.Element(
+                        "X"
+                    ) or atom.property("element1") == _SireMol.Element("X"):
                         # If perturbing TO dummy:
                         if atom.property("element1") == _SireMol.Element("X"):
                             # allow atom types to change.
@@ -1152,23 +1307,29 @@ def _to_pert_file(molecule, filename="MORPH.pert", zero_dummy_dihedrals=False,
 
                         # If perturbing FROM dummy:
                         else:
-
                             # All terms have already been perturbed in "5_grow_soft".
                             atom_type1 = atom_type0
-                            LJ0_value = LJ1_value = LJ0.sigma().value(), LJ0.epsilon().value()
-                            charge0_value = charge1_value = atom.property("charge0").value()
-
+                            LJ0_value = LJ1_value = (
+                                LJ0.sigma().value(),
+                                LJ0.epsilon().value(),
+                            )
+                            charge0_value = charge1_value = atom.property(
+                                "charge0"
+                            ).value()
 
                     else:
                         # If only hard atoms in perturbation, hold parameters.
                         atom_type1 = atom_type0
-                        LJ0_value = LJ1_value = LJ0.sigma().value(), LJ0.epsilon().value()
+                        LJ0_value = LJ1_value = (
+                            LJ0.sigma().value(),
+                            LJ0.epsilon().value(),
+                        )
                         charge0_value = charge1_value = atom.property("charge0").value()
 
                 elif perturbation_type == "flip":
-                    if (atom.property("element0") == _SireMol.Element("X") or
-                        atom.property("element1") == _SireMol.Element("X")):
-
+                    if atom.property("element0") == _SireMol.Element(
+                        "X"
+                    ) or atom.property("element1") == _SireMol.Element("X"):
                         # If perturbing TO dummy:
                         if atom.property("element1") == _SireMol.Element("X"):
                             # atom types have already been changed.
@@ -1182,8 +1343,13 @@ def _to_pert_file(molecule, filename="MORPH.pert", zero_dummy_dihedrals=False,
                         else:
                             # All terms have already been perturbed in "5_grow_soft".
                             atom_type1 = atom_type0
-                            LJ0_value = LJ1_value = LJ0.sigma().value(), LJ0.epsilon().value()
-                            charge0_value = charge1_value = atom.property("charge0").value()
+                            LJ0_value = LJ1_value = (
+                                LJ0.sigma().value(),
+                                LJ0.epsilon().value(),
+                            )
+                            charge0_value = charge1_value = atom.property(
+                                "charge0"
+                            ).value()
 
                     else:
                         # If only hard atoms in perturbation, change all parameters.
@@ -1195,9 +1361,9 @@ def _to_pert_file(molecule, filename="MORPH.pert", zero_dummy_dihedrals=False,
                         charge1_value = atom.property("charge1").value()
 
                 elif perturbation_type == "grow_soft":
-                    if (atom.property("element0") == _SireMol.Element("X") or
-                        atom.property("element1") == _SireMol.Element("X")):
-
+                    if atom.property("element0") == _SireMol.Element(
+                        "X"
+                    ) or atom.property("element1") == _SireMol.Element("X"):
                         # If perturbing TO dummy:
                         if atom.property("element1") == _SireMol.Element("X"):
                             # atom types have already been changed.
@@ -1217,18 +1383,23 @@ def _to_pert_file(molecule, filename="MORPH.pert", zero_dummy_dihedrals=False,
                             # In this step, soft-core perturbations are grown from 0.
                             LJ0_value = LJ0.sigma().value(), LJ0.epsilon().value()
                             LJ1_value = LJ1.sigma().value(), LJ1.epsilon().value()
-                            charge0_value = charge1_value = atom.property("charge0").value()
+                            charge0_value = charge1_value = atom.property(
+                                "charge0"
+                            ).value()
 
                     else:
                         # If only hard atoms in perturbation, parameters are already changed.
                         atom_type0 = atom_type1
-                        LJ0_value = LJ1_value = LJ1.sigma().value(), LJ1.epsilon().value()
+                        LJ0_value = LJ1_value = (
+                            LJ1.sigma().value(),
+                            LJ1.epsilon().value(),
+                        )
                         charge0_value = charge1_value = atom.property("charge1").value()
 
                 elif perturbation_type == "charge_soft":
-                    if (atom.property("element0") == _SireMol.Element("X") or
-                        atom.property("element1") == _SireMol.Element("X")):
-
+                    if atom.property("element0") == _SireMol.Element(
+                        "X"
+                    ) or atom.property("element1") == _SireMol.Element("X"):
                         # If perturbing TO dummy:
                         if atom.property("element1") == _SireMol.Element("X"):
                             # atom types have already been changed.
@@ -1245,14 +1416,20 @@ def _to_pert_file(molecule, filename="MORPH.pert", zero_dummy_dihedrals=False,
                             atom_type0 = atom_type1
 
                             # In this step, soft-core perturbations are charged from 0.
-                            LJ0_value = LJ1_value = LJ1.sigma().value(), LJ1.epsilon().value()
+                            LJ0_value = LJ1_value = (
+                                LJ1.sigma().value(),
+                                LJ1.epsilon().value(),
+                            )
                             charge0_value = atom.property("charge0").value()
                             charge1_value = atom.property("charge1").value()
 
                     else:
                         # If only hard atoms in perturbation, parameters are already changed.
                         atom_type0 = atom_type1
-                        LJ0_value = LJ1_value = LJ1.sigma().value(), LJ1.epsilon().value()
+                        LJ0_value = LJ1_value = (
+                            LJ1.sigma().value(),
+                            LJ1.epsilon().value(),
+                        )
                         charge0_value = charge1_value = atom.property("charge1").value()
 
                 # Write atom data.
@@ -2449,23 +2626,25 @@ def _to_pert_file(molecule, filename="MORPH.pert", zero_dummy_dihedrals=False,
     # Return the updated molecule.
     return _Molecule(mol.commit())
 
+
 def _has_pert_atom(idxs, pert_idxs):
-    """Internal function to check whether a potential contains perturbed atoms.
+    """
+    Internal function to check whether a potential contains perturbed atoms.
 
-       Parameters
-       ----------
+    Parameters
+    ----------
 
-       idxs : [AtomIdx]
-           A list of atom indices involved in the potential.
+    idxs : [AtomIdx]
+        A list of atom indices involved in the potential.
 
-       pert_idxs : [AtomIdx]
-           A list of atom indices that are perturbed.
+    pert_idxs : [AtomIdx]
+        A list of atom indices that are perturbed.
 
-       Returns
-       -------
+    Returns
+    -------
 
-       has_pert_atom : bool
-           Whether the potential includes a perturbed atom.
+    has_pert_atom : bool
+        Whether the potential includes a perturbed atom.
     """
 
     for idx in idxs:
@@ -2474,26 +2653,28 @@ def _has_pert_atom(idxs, pert_idxs):
 
     return False
 
+
 def _has_dummy(mol, idxs, is_lambda1=False):
-    """Internal function to check whether any atom is a dummy.
+    """
+    Internal function to check whether any atom is a dummy.
 
-       Parameters
-       ----------
+    Parameters
+    ----------
 
-       mol : Sire.Mol.Molecule
-           The molecule.
+    mol : Sire.Mol.Molecule
+        The molecule.
 
-       idxs : [AtomIdx]
-           A list of atom indices.
+    idxs : [AtomIdx]
+        A list of atom indices.
 
-       is_lambda1 : bool
-           Whether to check the lambda = 1 state.
+    is_lambda1 : bool
+        Whether to check the lambda = 1 state.
 
-       Returns
-       -------
+    Returns
+    -------
 
-       has_dummy : bool
-           Whether a dummy atom is present.
+    has_dummy : bool
+        Whether a dummy atom is present.
     """
 
     # Set the element property associated with the end state.
@@ -2511,26 +2692,28 @@ def _has_dummy(mol, idxs, is_lambda1=False):
 
     return False
 
+
 def _is_dummy(mol, idxs, is_lambda1=False):
-    """Internal function to return whether each atom is a dummy.
+    """
+    Internal function to return whether each atom is a dummy.
 
-       Parameters
-       ----------
+    Parameters
+    ----------
 
-       mol : Sire.Mol.Molecule
-           The molecule.
+    mol : Sire.Mol.Molecule
+        The molecule.
 
-       idxs : [AtomIdx]
-           A list of atom indices.
+    idxs : [AtomIdx]
+        A list of atom indices.
 
-       is_lambda1 : bool
-           Whether to check the lambda = 1 state.
+    is_lambda1 : bool
+        Whether to check the lambda = 1 state.
 
-       Returns
-       -------
+    Returns
+    -------
 
-       is_dummy : [bool]
-           Whether each atom is a dummy.
+    is_dummy : [bool]
+        Whether each atom is a dummy.
     """
 
     # Set the element property associated with the end state.
@@ -2551,33 +2734,37 @@ def _is_dummy(mol, idxs, is_lambda1=False):
 
     return is_dummy
 
+
 def _random_suffix(basename, size=4, chars=_string.ascii_uppercase + _string.digits):
-    """Internal helper function to generate a random atom name suffix to avoid
-       naming clashes.
+    """
+    Internal helper function to generate a random atom name suffix to avoid
+    naming clashes.
 
-       Adapted from:
-       https://stackoverflow.com/questions/2257441/random-string-generation-with-upper-case-letters-and-digits-in-python
+    Adapted from:
+    https://stackoverflow.com/questions/2257441/random-string-generation-with-upper-case-letters-and-digits-in-python
 
-       Parameters
-       ----------
+    Parameters
+    ----------
 
-       basename : str
-           The base string to which a suffix will be appended.
+    basename : str
+        The base string to which a suffix will be appended.
 
-       size : int
-           The maximum width of the string, i.e. len(basename + suffix).
+    size : int
+        The maximum width of the string, i.e. len(basename + suffix).
 
-       chars : str
-           The set of characters to include in the suffix.
+    chars : str
+        The set of characters to include in the suffix.
 
-       Returns
-       -------
+    Returns
+    -------
 
-       suffix : str
-           The randomly generated suffix.
+    suffix : str
+        The randomly generated suffix.
     """
     basename_size = len(basename)
     if basename_size >= size:
-        raise ValueError("Cannot generate suffix for basename '%s'. " % basename
-                       + "AMBER atom names can only be 4 characters wide.")
-    return "".join(_random.choice(chars) for _ in range(size-basename_size))
+        raise ValueError(
+            "Cannot generate suffix for basename '%s'. " % basename
+            + "AMBER atom names can only be 4 characters wide."
+        )
+    return "".join(_random.choice(chars) for _ in range(size - basename_size))

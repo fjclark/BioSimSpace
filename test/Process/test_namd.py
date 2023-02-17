@@ -1,6 +1,6 @@
 import BioSimSpace as BSS
 
-from Sire.Base import findExe
+from sire.legacy.Base import findExe
 
 import pytest
 
@@ -11,10 +11,17 @@ try:
 except:
     has_namd = False
 
-@pytest.fixture
-def system(scope="session"):
+# Store the tutorial URL.
+url = BSS.tutorialUrl()
+
+
+@pytest.fixture(scope="session")
+def system():
     """Re-use the same molecuar system for each test."""
-    return BSS.IO.readMolecules("test/input/namd/alanin/*")
+    return BSS.IO.readMolecules(
+        ["test/input/alanin.psf", f"test/input/alanin.pdb", f"test/input/alanin.params"]
+    )
+
 
 @pytest.mark.skipif(has_namd is False, reason="Requires NAMD to be installed.")
 def test_minimise(system):
@@ -26,39 +33,50 @@ def test_minimise(system):
     # Run the process and check that it finishes without error.
     assert run_process(system, protocol)
 
+
 @pytest.mark.skipif(has_namd is False, reason="Requires NAMD to be installed.")
-def test_equilibrate(system):
+@pytest.mark.parametrize("restraint", ["backbone", "heavy", "all", "none"])
+def test_equilibrate(system, restraint):
     """Test an equilibration protocol."""
 
     # Create a short equilibration protocol.
-    protocol = BSS.Protocol.Equilibration(runtime=BSS.Types.Time(0.001, "nanoseconds"))
+    protocol = BSS.Protocol.Equilibration(
+        runtime=BSS.Types.Time(0.001, "nanoseconds"), restraint=restraint
+    )
 
     # Run the process and check that it finishes without error.
     assert run_process(system, protocol)
+
 
 @pytest.mark.skipif(has_namd is False, reason="Requires NAMD to be installed.")
 def test_heat(system):
     """Test a heating protocol."""
 
     # Create a short heating protocol.
-    protocol = BSS.Protocol.Equilibration(runtime=BSS.Types.Time(0.001, "nanoseconds"),
-                                          temperature_start=BSS.Types.Temperature(0, "kelvin"),
-                                          temperature_end=BSS.Types.Temperature(300, "kelvin"))
+    protocol = BSS.Protocol.Equilibration(
+        runtime=BSS.Types.Time(0.001, "nanoseconds"),
+        temperature_start=BSS.Types.Temperature(0, "kelvin"),
+        temperature_end=BSS.Types.Temperature(300, "kelvin"),
+    )
 
     # Run the process and check that it finishes without error.
     assert run_process(system, protocol)
+
 
 @pytest.mark.skipif(has_namd is False, reason="Requires NAMD to be installed.")
 def test_cool(system):
     """Test a cooling protocol."""
 
     # Create a short heating protocol.
-    protocol = BSS.Protocol.Equilibration(runtime=BSS.Types.Time(0.001, "nanoseconds"),
-                                          temperature_start=BSS.Types.Temperature(300, "kelvin"),
-                                          temperature_end=BSS.Types.Temperature(0, "kelvin"))
+    protocol = BSS.Protocol.Equilibration(
+        runtime=BSS.Types.Time(0.001, "nanoseconds"),
+        temperature_start=BSS.Types.Temperature(300, "kelvin"),
+        temperature_end=BSS.Types.Temperature(0, "kelvin"),
+    )
 
     # Run the process and check that it finishes without error.
     assert run_process(system, protocol)
+
 
 @pytest.mark.skipif(has_namd is False, reason="Requires NAMD to be installed.")
 def test_production(system):
@@ -69,6 +87,7 @@ def test_production(system):
 
     # Run the process and check that it finishes without error.
     assert run_process(system, protocol)
+
 
 def run_process(system, protocol):
     """Helper function to run various simulation protocols."""

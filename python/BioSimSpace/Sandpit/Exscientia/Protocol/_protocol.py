@@ -1,13 +1,13 @@
 ######################################################################
 # BioSimSpace: Making biomolecular simulation a breeze!
 #
-# Copyright: 2017-2022
+# Copyright: 2017-2023
 #
 # Authors: Lester Hedges <lester.hedges@gmail.com>
 #
 # BioSimSpace is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 2 of the License, or
+# the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
 # BioSimSpace is distributed in the hope that it will be useful,
@@ -19,16 +19,15 @@
 # along with BioSimSpace. If not, see <http://www.gnu.org/licenses/>.
 #####################################################################
 
-"""
-Functionality for handling simulation protocols.
-"""
+"""Functionality for handling simulation protocols."""
 
 __author__ = "Lester Hedges"
 __email__ = "lester.hedges@gmail.com"
 
 __all__ = ["Protocol"]
 
-class Protocol():
+
+class Protocol:
     """A base class for holding simulation protocols."""
 
     def __init__(self):
@@ -41,14 +40,33 @@ class Protocol():
         # Flag that the protocol hasn't been customised.
         self._is_customised = False
 
+    def _get_parm(self):
+        """Return a string representation of the parameters."""
+        return ""
+
+    def __str__(self):
+        """Return a human readable string representation of the object."""
+        if self._is_customised:
+            return "<BioSimSpace.Protocol.Custom>"
+        else:
+            return f"<BioSimSpace.Protocol.Protocol: {self._get_parm()}>"
+
+    def __repr__(self):
+        """Return a string showing how to instantiate the object."""
+        if self._is_customised:
+            return "BioSimSpace.Protocol.Custom"
+        else:
+            return f"BioSimSpace.Protocol.Protocol({self._get_parm()})"
+
     def _setCustomised(self, is_customised):
-        """Internal function to flag whether a protocol has been customised.
+        """
+        Internal function to flag whether a protocol has been customised.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           is_customised : bool
-               Whether the protocol has been customised.
+        is_customised : bool
+            Whether the protocol has been customised.
         """
         if not isinstance(is_customised, bool):
             raise TypeError("'is_customised' must be of type 'bool'.")

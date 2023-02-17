@@ -16,13 +16,22 @@ else:
 # Check whether GROMACS is installed.
 has_gromacs = BSS._gmx_exe is not None
 
-@pytest.fixture
-def system(scope="session"):
-    """Re-use the same molecuar system for each test."""
-    return BSS.IO.readMolecules("test/input/amber/ubiquitin/*")
+# Store the tutorial URL.
+url = BSS.tutorialUrl()
 
-@pytest.mark.skipif(has_amber is False or has_gromacs is False,
-    reason="Requires that both AMBER and GROMACS are installed.")
+
+@pytest.fixture(scope="session")
+def system():
+    """Re-use the same molecuar system for each test."""
+    return BSS.IO.readMolecules(
+        [f"{url}/ubiquitin.prm7.bz2", f"{url}/ubiquitin.rst7.bz2"]
+    )
+
+
+@pytest.mark.skipif(
+    has_amber is False or has_gromacs is False,
+    reason="Requires that both AMBER and GROMACS are installed.",
+)
 def test_amber_gromacs(system):
     """Single point energy comparison between AMBER and GROMACS."""
 
@@ -33,12 +42,7 @@ def test_amber_gromacs(system):
     process_amb = BSS.Process.Amber(system, protocol)
 
     # Create a process to run with GROMACS.
-    process_gmx = BSS.Process.Gromacs(system, protocol)
-
-    # Modify the GROMACS configuration to run zero steps.
-    config = process_gmx.getConfig()
-    config[2] = "nsteps = 0"
-    process_gmx.setConfig(config)
+    process_gmx = BSS.Process.Gromacs(system, protocol, extra_options={"nsteps": 0})
 
     # Run the AMBER process and wait for it to finish.
     process_amb.start()
@@ -63,13 +67,17 @@ def test_amber_gromacs(system):
     nrg_gmx = process_gmx.getDihedralEnergy().kj_per_mol().value()
     assert nrg_amb == pytest.approx(nrg_gmx, rel=1e-2)
 
-@pytest.mark.skipif(has_amber is False or has_gromacs is False,
-    reason="Requires that both AMBER and GROMACS are installed.")
+
+@pytest.mark.skipif(
+    has_amber is False or has_gromacs is False,
+    reason="Requires that both AMBER and GROMACS are installed.",
+)
 def test_amber_gromacs_triclinic(system):
     """Single point energy comparison between AMBER and GROMACS in a triclinic box."""
 
     # Swap the space for a triclinic cell (truncated octahedron).
-    from Sire.Vol import TriclinicBox
+    from sire.legacy.Vol import TriclinicBox
+
     triclinic_box = TriclinicBox.truncatedOctahedron(50)
     system._sire_object.setProperty("space", triclinic_box)
 
@@ -80,12 +88,7 @@ def test_amber_gromacs_triclinic(system):
     process_amb = BSS.Process.Amber(system, protocol)
 
     # Create a process to run with GROMACS.
-    process_gmx = BSS.Process.Gromacs(system, protocol)
-
-    # Modify the GROMACS configuration to run zero steps.
-    config = process_gmx.getConfig()
-    config[2] = "nsteps = 0"
-    process_gmx.setConfig(config)
+    process_gmx = BSS.Process.Gromacs(system, protocol, extra_options={"nsteps": 0})
 
     # Run the AMBER process and wait for it to finish.
     process_amb.start()

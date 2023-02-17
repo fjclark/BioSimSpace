@@ -11,10 +11,26 @@ import pytest
 import os
 import warnings as _warnings
 
-@pytest.fixture
-def system(scope="session"):
+# Store the tutorial URL.
+url = BSS.tutorialUrl()
+
+
+@pytest.fixture(scope="session")
+def system():
     """Re-use the same molecuar system for each test."""
-    return BSS.IO.readMolecules("test/input/amber/ala/*")
+    return BSS.IO.readMolecules(["test/input/ala.top", "test/input/ala.crd"])
+
+
+@pytest.fixture(scope="session")
+def perturbable_system():
+    """Re-use the same perturbable system for each test."""
+    return BSS.IO.readPerturbableSystem(
+        f"{url}/perturbable_system0.prm7",
+        f"{url}/perturbable_system0.rst7",
+        f"{url}/perturbable_system1.prm7",
+        f"{url}/perturbable_system1.rst7",
+    )
+
 
 def test_minimise(system):
     """Test a minimisation protocol."""
@@ -25,6 +41,7 @@ def test_minimise(system):
     # Run the process and check that it finishes without error.
     assert run_process(system, protocol)
 
+
 def test_equilibrate(system):
     """Test an equilibration protocol."""
 
@@ -33,6 +50,7 @@ def test_equilibrate(system):
 
     # Run the process and check that it finishes without error.
     assert run_process(system, protocol)
+
 
 def test_production(system):
     """Test a production protocol."""
@@ -43,48 +61,56 @@ def test_production(system):
     # Run the process and check that it finishes without error.
     assert run_process(system, protocol)
 
-@pytest.mark.parametrize("morph, pert",
-    [("test/Sandpit/Exscientia/input/morphs/morph01.pickle",
-      "test/Sandpit/Exscientia/input/morphs/morph01.pert")])
-def test_pert_file(morph, pert):
+
+def test_free_energy(perturbable_system):
+    """Test a free energy perturbation protocol."""
+
+    # Create a short FEP protocol.
+    protocol = BSS.Protocol.FreeEnergy(
+        runtime=0.1 * BSS.Units.Time.picosecond, report_interval=50, restart_interval=50
+    )
+
+    # Run the process and check that it finishes without error.
+    assert run_process(perturbable_system[0].toSystem(), protocol)
+
+
+def test_pert_file():
     """Test the perturbation file writer."""
 
-    import pickle
-
-    # Unpickle the molecule.
-    with open(morph, "rb") as file:
-        mol = pickle.load(file)
+    # Load the perturbable molecule.
+    mol = BSS.IO.readPerturbableSystem(
+        f"{url}/morph0.prm7",
+        f"{url}/morph0.rst7",
+        f"{url}/morph1.prm7",
+        f"{url}/morph1.rst7",
+    )[0]
 
     # Create the perturbation file.
     BSS.Process._somd._to_pert_file(mol)
 
     # Check that the files are the same.
-    assert filecmp.cmp("MORPH.pert", pert)
+    assert filecmp.cmp("MORPH.pert", "test/input/morph.pert")
 
     # Remove the temporary perturbation file.
     os.remove("MORPH.pert")
 
-def test_pert_res_num():
-    """Test that the perturbable residue number is correct when
-       the molecules in the system are re-ordered.
-    """
-    import pickle
 
-    # Unpickle the system.
-    with open("test/Sandpit/Exscientia/input/morphs/perturbable_system.pickle", "rb") as file:
-        system = pickle.load(file)
+def test_pert_res_num(perturbable_system):
+    """Test that the perturbable residue number is correct when
+    the molecules in the system are re-ordered.
+    """
 
     # Create a default free energy protocol.
     protocol = BSS.Protocol.FreeEnergy()
 
     # Set up the intial process object.
-    process0 = BSS.Process.Somd(system, protocol)
+    process0 = BSS.Process.Somd(perturbable_system, protocol)
 
     # Now put the perturbable molecule last.
-    new_system = (system[1:] + system[0]).toSystem()
+    new_system = (perturbable_system[1:] + perturbable_system[0]).toSystem()
 
     # Re-add the box info.
-    new_system.setBox(*system.getBox())
+    new_system.setBox(*perturbable_system.getBox())
 
     # Set up the new process object.
     process1 = BSS.Process.Somd(new_system, protocol)
@@ -171,8 +197,11 @@ def run_process(system, protocol, **kwargs):
     # if this is the case, the test will pass with a warning
     if res:
         with open(os.path.join(process.workDir(), "test.out"), "r") as hnd:
-            if ("RuntimeError: Particle coordinate is nan" in hnd.read()):
-                _warnings.warn("Test raised RuntimeError: Particle coordinate is nan", RuntimeWarning)
+            if "RuntimeError: Particle coordinate is nan" in hnd.read():
+                _warnings.warn(
+                    "Test raised RuntimeError: Particle coordinate is nan",
+                    RuntimeWarning,
+                )
                 res = False
 
     return not res

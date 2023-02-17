@@ -1,13 +1,13 @@
 ######################################################################
 # BioSimSpace: Making biomolecular simulation a breeze!
 #
-# Copyright: 2017-2022
+# Copyright: 2017-2023
 #
 # Authors: Lester Hedges <lester.hedges@gmail.com>
 #
 # BioSimSpace is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 2 of the License, or
+# the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
 # BioSimSpace is distributed in the hope that it will be useful,
@@ -29,29 +29,19 @@ __email__ = "finlay.clark@ed.ac.uk"
 
 __all__ = ["RestraintSearch"]
 
-try:
-    from MDRestraintsGenerator import search as _search
-    from MDRestraintsGenerator.restraints import FindBoreschRestraint as _FindBoreschRestraint
-    is_MDRestraintsGenerator = True
-except:
-    print('Please install MDRestraintsGenerator for analysis using it.')
-    is_MDRestraintsGenerator = False
-
-from MDAnalysis.analysis.distances import dist as _dist
-from MDAnalysis.lib.distances import calc_angles as _calc_angles
-from MDAnalysis.lib.distances import calc_dihedrals as _calc_dihedrals
-from scipy.stats import circmean as _circmean
+from numpy.linalg import norm as _norm
 import matplotlib.pyplot as _plt
 import MDAnalysis as _mda 
 import numpy as _np
 import os as _os
+from scipy.stats import circmean as _circmean
 import sys as _sys
 import tempfile as _tempfile
 import warnings as _warnings
 
-from Sire.Base import getBinDir as _getBinDir
-from Sire.Base import getShareDir as _getShareDir
-from Sire.Units import k_boltz as _k_boltz # kcal / (mol K)
+from sire.legacy.Base import getBinDir as _getBinDir
+from sire.legacy.Base import getShareDir as _getShareDir
+from sire.legacy.Units import k_boltz as _k_boltz # kcal / (mol K)
 
 from .._Exceptions import AnalysisError as _AnalysisError
 from .._Exceptions import MissingSoftwareError as _MissingSoftwareError
@@ -61,6 +51,10 @@ from .._SireWrappers import System as _System
 from ..Trajectory._trajectory import Trajectory as _Trajectory
 from ..Types import Length as _Length
 from ..Types import Temperature as _Temperature
+from ..Types import Length as _Length
+from .. import Units as _Units
+from ..Units.Length import angstrom as _angstrom
+from ..Units.Angle import radian as _radian
 from ..Units.Angle import degree as _degree
 from ..Units.Angle import radian as _radian
 from ..Units.Energy import kcal_per_mol as _kcal_per_mol
@@ -76,81 +70,141 @@ if _is_notebook:
 else:
     from tqdm import tqdm as _tqdm
 
+from .._Utils import _try_import, _have_imported
+from .... import _isVerbose
+
+from ..MD._md import _find_md_engines
+
+if _is_notebook:
+    from IPython.display import FileLink as _FileLink
+    from tqdm.notebook import tqdm as _tqdm 
+else:
+    from tqdm import tqdm as _tqdm
+
+
+_mda = _try_import("MDAnalysis")
+
+if _have_imported(_mda):
+    from MDAnalysis.analysis.distances import dist as _dist
+    from MDAnalysis.lib.distances import calc_angles as _calc_angles
+    from MDAnalysis.analysis.distances import dist as _dist
+    from MDAnalysis.lib.distances import calc_dihedrals as _calc_dihedrals
+
+
+_MDRestraintsGenerator = _try_import(
+    "MDRestraintsGenerator",
+    install_command="pip install MDRestraintsGenerator",
+)
+if _have_imported(_MDRestraintsGenerator):
+    from MDRestraintsGenerator import search as _search
+    from MDRestraintsGenerator.restraints import (
+        FindBoreschRestraint as _FindBoreschRestraint,
+    )
+
+
 # Check that the analyse_freenrg script exists.
 if _sys.platform != "win32":
     _analyse_freenrg = _os.path.join(_getBinDir(), "analyse_freenrg")
 else:
-    _analyse_freenrg = _os.path.join(_os.path.normpath(_getShareDir()), "scripts", "analyse_freenrg.py")
+    _analyse_freenrg = _os.path.join(
+        _os.path.normpath(_getShareDir()), "scripts", "analyse_freenrg.py"
+    )
 if not _os.path.isfile(_analyse_freenrg):
-    raise _MissingSoftwareError("Cannot find free energy analysis script in expected location: '%s'" % _analyse_freenrg)
+    raise _MissingSoftwareError(
+        "Cannot find free energy analysis script in expected location: '%s'"
+        % _analyse_freenrg
+    )
 if _sys.platform == "win32":
-    _analyse_freenrg = "%s %s" % (_os.path.join(_os.path.normpath(_getBinDir()), "sire_python.exe"), _analyse_freenrg)
+    _analyse_freenrg = "%s %s" % (
+        _os.path.join(_os.path.normpath(_getBinDir()), "sire_python.exe"),
+        _analyse_freenrg,
+    )
 
-class RestraintSearch():
-    """Class for running unrestrained simulations from which receptor-ligand 
-    restraints are selected"""
+
+class RestraintSearch:
+    """Class for running unrestrained simulations from which receptor-ligand
+    restraints are selected.
+    """
 
     # Create a list of supported molecular dynamics engines.
     _engines = ["GROMACS", "SOMD"] 
 
-    def __init__(self, system, protocol=None, work_dir=None, engine=None,
-            gpu_support=False, ignore_warnings=False,
-            show_errors=True, extra_options=None, extra_lines=None,
-            property_map={}, **kwargs):
-        """Constructor.
+    def __init__(
+        self,
+        system,
+        protocol=None,
+        work_dir=None,
+        engine=None,
+        gpu_support=False,
+        ignore_warnings=False,
+        show_errors=True,
+        extra_options=None,
+        extra_lines=None,
+        property_map={},
+        **kwargs,
+    ):
+        """
+        Constructor.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           system : :class:`System <BioSimSpace._SireWrappers.System>`
-               The molecular system for the ABFE simulation. This must contain
-               a single decoupled molecule and is assumed to have already
-               been equilibrated.
+        system : :class:`System <BioSimSpace._SireWrappers.System>`
+            The molecular system for the ABFE simulation. This must contain
+            a single decoupled molecule and is assumed to have already
+            been equilibrated.
 
-           protocol : :class:`Protocol.Production <BioSimSpace.Protocol.Production>`, \
-               The simulation production protocol.
+        protocol : :class:`Protocol.Production <BioSimSpace.Protocol.Production>`, \
+            The simulation production protocol.
 
-           work_dir : str
-               The working directory for the ABFE restraint generation
-                simulation.
+        work_dir : str
+            The working directory for the ABFE restraint generation
+            simulation.
 
-           engine: str
-               The molecular dynamics engine used to run the simulation. Available
-               options are "AMBER", "GROMACS", or "SOMD". If this argument is omitted
-               then BioSimSpace will choose an appropriate engine for you.
+        engine : str
+            The molecular dynamics engine used to run the simulation. Available
+            options are "AMBER", "GROMACS", or "SOMD". If this argument is omitted
+            then BioSimSpace will choose an appropriate engine for you.
 
-           gpu_support : bool
-               Whether the engine must have GPU support.
+        gpu_support : bool
+            Whether the engine must have GPU support.
 
-           ignore_warnings : bool
-               Whether to ignore warnings when generating the binary run file.
-               This option is specific to GROMACS and will be ignored when a
-               different molecular dynamics engine is chosen.
+        ignore_warnings : bool
+            Whether to ignore warnings when generating the binary run file.
+            This option is specific to GROMACS and will be ignored when a
+            different molecular dynamics engine is chosen.
 
-           show_errors : bool
-               Whether to show warning/error messages when generating the binary
-               run file. This option is specific to GROMACS and will be ignored
-               when a different molecular dynamics engine is chosen.
+        show_errors : bool
+            Whether to show warning/error messages when generating the binary
+            run file. This option is specific to GROMACS and will be ignored
+            when a different molecular dynamics engine is chosen.
 
-           extra_options : dict
-               A dictionary containing extra options. Overrides the ones generated from the protocol.
+        extra_options : dict
+            A dictionary containing extra options. Overrides the ones generated from the protocol.
 
-           extra_lines : list
-               A list of extra lines to be put at the end of the script.
-           
-           property_map : dict
-               A dictionary that maps system "properties" to their user defined
-               values. This allows the user to refer to properties with their
-               own naming scheme, e.g. { "charge" : "my-charge" }
+        extra_lines : list
+            A list of extra lines to be put at the end of the script.
 
-           kwargs :
-               Keyword arguments to be passed to the BSS.Process.
+        property_map : dict
+            A dictionary that maps system "properties" to their user defined
+            values. This allows the user to refer to properties with their
+            own naming scheme, e.g. { "charge" : "my-charge" }
+
+        kwargs :
+            Keyword arguments to be passed to the BSS.Process.
         """
 
         # Validate the input.
+        if not _have_imported(_mda):
+            raise _MissingSoftwareError(
+                "Cannot perform a RestraintSearch because MDAnalysis is "
+                "not installed!"
+            )
 
         if not isinstance(system, _System):
-            raise TypeError("'system' must be of type 'BioSimSpace._SireWrappers.System'")
+            raise TypeError(
+                "'system' must be of type 'BioSimSpace._SireWrappers.System'"
+            )
         else:
             # Store a copy of solvated system.
             self._system = system.copy()
@@ -159,12 +213,25 @@ class RestraintSearch():
             if isinstance(protocol, _Protocol.Production):
                 self._protocol = protocol
             else:
-                raise TypeError("'protocol' must be of type 'BioSimSpace.Protocol.Production'")
+                raise TypeError(
+                    "'protocol' must be of type 'BioSimSpace.Protocol.Production'"
+                )
         else:
             self._protocol = _Protocol.Production()
 
-        self._extra_options = extra_options if extra_options is not None else {}
-        self._extra_lines = extra_lines if extra_lines is not None else []
+        if extra_options is None:
+            self._extra_options = {}
+        elif not isinstance(extra_options, dict):
+            raise ValueError("'extra_options' should be a dict.")
+        else:
+            self._extra_options = extra_options
+
+        if extra_lines is None:
+            self._extra_lines = []
+        elif not isinstance(extra_lines, list):
+            raise ValueError("'extra_lines' should be a list.")
+        else:
+            self._extra_lines = extra_lines
 
         # Create a temporary working directory and store the directory name.
         if work_dir is None:
@@ -181,9 +248,11 @@ class RestraintSearch():
 
         # There must be a single molecule to be decoupled (or annihilated).
         if system.nDecoupledMolecules() != 1:
-            raise ValueError("The system must contain a single molecule to be decoupled! "
-                                "Use the 'BioSimSpace.Align.Decouple' function to mark a molecule"
-                                " to be decoupled.")
+            raise ValueError(
+                "The system must contain a single molecule to be decoupled! "
+                "Use the 'BioSimSpace.Align.Decouple' function to mark a molecule"
+                " to be decoupled."
+            )
 
         # Validate the user specified molecular dynamics engine.
         self._exe = None
@@ -196,22 +265,30 @@ class RestraintSearch():
 
             # Check that the engine is supported.
             if engine not in self._engines:
-                raise ValueError("Unsupported molecular dynamics engine '%s'. "
-                                 "Supported engines are: %r." % ", ".join(self._engines))
+                raise ValueError(
+                    "Unsupported molecular dynamics engine '%s'. "
+                    "Supported engines are: %r." % ", ".join(self._engines)
+                )
 
             # Make sure GROMACS is installed if GROMACS engine is selected.
             if engine == "GROMACS":
                 if _gmx_exe is None:
-                    raise _MissingSoftwareError("Cannot use GROMACS engine as GROMACS is not installed!")
+                    raise _MissingSoftwareError(
+                        "Cannot use GROMACS engine as GROMACS is not installed!"
+                    )
                 self._exe = _gmx_exe
 
             elif engine == "AMBER":
                 # Find a molecular dynamics engine and executable.
                 engines, exes = _find_md_engines(system, protocol, engine, gpu_support)
                 if not exes:
-                    raise _MissingSoftwareError("Cannot use AMBER engine as AMBER is not installed!")
+                    raise _MissingSoftwareError(
+                        "Cannot use AMBER engine as AMBER is not installed!"
+                    )
                 elif len(exes) > 1:
-                    _warnings.warn(f"Multiple AMBER engines were found. Proceeding with {exes[0]}...")
+                    _warnings.warn(
+                        f"Multiple AMBER engines were found. Proceeding with {exes[0]}..."
+                    )
                 self._exe = exes[0]
 
         else:
@@ -258,13 +335,14 @@ class RestraintSearch():
         return self._process.isRunning()
 
     def workDir(self):
-        """Return the working directory.
+        """
+        Return the working directory.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           work_dir : str
-               The path of the working directory.
+        work_dir : str
+            The path of the working directory.
         """
         return self._work_dir
 
@@ -340,29 +418,29 @@ class RestraintSearch():
         return RestraintSearch.analyse(self._work_dir, self._system,
                 self._process.getTrajectory(),
                 self._protocol.getTemperature(),
-                rest_type=rest_type,
+                restraint_type=rest_type,
                 method=method,
-                append_to_lig_selection=append_to_lig_selection,
+                append_to_ligand_selection=append_to_lig_selection,
                 recept_selection_str=recept_selection_str,
                 cutoff=cutoff,
                 force_constant=force_constant,
                 restraint_idx=restraint_idx)
 
     def _initialise_process(self, system, gpu_support, **kwargs):
-        """Internal helper function to initialise the process.
+        """
+        Internal helper function to initialise the process.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           system : :class:`System <BioSimSpace._SireWrappers.System>`
-               The molecular system.
+        system : :class:`System <BioSimSpace._SireWrappers.System>`
+            The molecular system.
 
-           gpu_support : bool
-               Whether the engine must have GPU support.
+        gpu_support : bool
+            Whether the engine must have GPU support.
 
-           kwargs :
-               Keyword arguments to be passed to the BSS.Process.
-
+        kwargs :
+            Keyword arguments to be passed to the BSS.Process.
         """
 
         # Convert to an appropriate AMBER topology. (Required by SOMD for its
@@ -382,31 +460,48 @@ class RestraintSearch():
                     raise ValueError("gpu_support cannot be True if CUDA_VISIBLE_DEVICES is not set.")
                 platform = "CPU"
 
-            self._process = _Process.Somd(system, self._protocol,
-                platform=platform, work_dir=self._work_dir,
-                property_map=self._property_map, extra_options=self._extra_options,
-                extra_lines=self._extra_lines, **kwargs)
+            self._process = _Process.Somd(
+                system,
+                self._protocol,
+                platform=platform,
+                work_dir=self._work_dir,
+                property_map=self._property_map,
+                extra_options=self._extra_options,
+                extra_lines=self._extra_lines,
+                **kwargs,
+            )
 
         # GROMACS.
         elif self._engine == "GROMACS":
-            self._process = _Process.Gromacs(system, self._protocol,
-                work_dir=self._work_dir, ignore_warnings=self._ignore_warnings,
-                show_errors=self._show_errors, extra_options=self._extra_options,
-                extra_lines=self._extra_lines, **kwargs)
+            self._process = _Process.Gromacs(
+                system,
+                self._protocol,
+                work_dir=self._work_dir,
+                ignore_warnings=self._ignore_warnings,
+                show_errors=self._show_errors,
+                extra_options=self._extra_options,
+                extra_lines=self._extra_lines,
+                **kwargs,
+            )
             if gpu_support:
                 self._process.setArg("-update", "gpu")
 
         # AMBER.
         elif self._engine == "AMBER":
-            self._process = _Process.Amber(system, self._protocol, exe=self._exe,
-                work_dir=self._work_dir, extra_options=self._extra_options,
-                extra_lines=self._extra_lines, **kwargs)
-
+            self._process = _Process.Amber(
+                system,
+                self._protocol,
+                exe=self._exe,
+                work_dir=self._work_dir,
+                extra_options=self._extra_options,
+                extra_lines=self._extra_lines,
+                **kwargs,
+            )
 
     @staticmethod
-    def analyse(work_dir, system, traj, temperature, rest_type='Boresch',
+    def analyse(work_dir, system, traj, temperature, restraint_type='Boresch',
                 method='MDRestraintsGenerator',
-                append_to_lig_selection="",
+                append_to_ligand_selection="",
                 recept_selection_str='protein and name CA C N',
                 force_constant=None,
                 cutoff=8 * _angstrom,
@@ -432,23 +527,23 @@ class RestraintSearch():
            temperature : :class:`System <BioSimSpace.Types.Temperature>`
                The temperature of the system
 
-           rest_type: str
+           restraint_type : str
                The type of restraints to select (currently only Boresch is available).
                Default is ``Boresch``.
-           
-           method: str
-                The method to use to derive the restraints. 'BSS' or 'MDRestraintsGenerator'. 
+
+           method : str
+                The method to use to derive the restraints. 'BSS' or 'MDRestraintsGenerator'.
                 BSS uses the native BioSimSpace derivation.
 
-           append_to_lig_selection: str
+           append_to_ligand_selection : str
                Appends the supplied string to the default atom selection which chooses
                the atoms in the ligand to consider as potential anchor points. The default
                atom selection is f'resname {ligand_resname} and not name H*'. Uses the
                mdanalysis atom selection language. For example, 'not name O*' will result
-               in an atom selection of f'resname {ligand_resname} and not name H* and not 
+               in an atom selection of f'resname {ligand_resname} and not name H* and not
                name O*'.
 
-           recept_selection_str: str
+           receptor_selection_str : str
                The selection string for the atoms in the receptor to consider
                as potential anchor points. The default atom selection is
                'protein and name CA C N'. Uses the mdanalysis atom selection
@@ -475,9 +570,8 @@ class RestraintSearch():
            -------
 
            restraint : :class:`Restraint <BioSimSpace.Sandpit.Exscientia.FreeEnergy.Restraint>`
-               The restraints of `rest_type` which best mimic the strongest receptor-ligand
+               The restraints of `restraint_type` which best mimic the strongest receptor-ligand
                interactions.
-
         """
         # Check all inputs
 
@@ -487,31 +581,40 @@ class RestraintSearch():
             raise ValueError(f"work_dir: {work_dir} doesn't exist!")
 
         if not isinstance(system, _System):
-            raise TypeError(f"system {type(system)} must be of type 'BioSimSpace._SireWrappers.System'")
+            raise TypeError(
+                f"system {type(system)} must be of type 'BioSimSpace._SireWrappers.System'"
+            )
         else:
             # Store a copy of solvated system.
             _system = system.copy()
 
         if not isinstance(traj, _Trajectory):
-            raise TypeError(f"traj {type(traj)} must be of type 'BioSimSpace.Trajectory._trajectory.Trajectory'")
+            raise TypeError(
+                f"traj {type(traj)} must be of type 'BioSimSpace.Trajectory._trajectory.Trajectory'"
+            )
 
         if not isinstance(temperature, _Temperature):
             raise ValueError(
-                f"temperature {type(temperature)} must be of type 'BioSimSpace.Types.Temperature'")
+                f"temperature {type(temperature)} must be of type 'BioSimSpace.Types.Temperature'"
+            )
 
-        if not isinstance(rest_type, str):
-            raise TypeError(f"rest_type {type(rest_type)} must be of type 'str'.")
-        if not rest_type.lower() == 'boresch':
-            raise NotImplementedError("Only Boresch restraints are currently implemented")
-        
+        if not isinstance(restraint_type, str):
+            raise TypeError(
+                f"restraint_type {type(restraint_type)} must be of type 'str'."
+            )
+        if not restraint_type.lower() == "boresch":
+            raise NotImplementedError(
+                "Only Boresch restraints are currently implemented"
+            )
+
         if not isinstance(method, str):
             raise TypeError(f"method {type(method)} must be of type 'str'.")
         if not method.lower() in ['mdrestraintsgenerator', 'bss']:
             raise NotImplementedError("Deriving restraints using 'MDRestraintsGenerator'"
                                       "or 'BSS' are the only options implemented.")
                             
-        if not isinstance(append_to_lig_selection, str):
-            raise TypeError(f"append_to_lig_selection {type(append_to_lig_selection)} must be of type 'str'.")
+        if not isinstance(append_to_ligand_selection, str):
+            raise TypeError(f"append_to_lig_selection {type(append_to_ligand_selection)} must be of type 'str'.")
 
         if not isinstance(recept_selection_str, str):
             raise TypeError(f"append_to_recept_selection {type(recept_selection_str)} must be of type 'str'.")
@@ -528,26 +631,28 @@ class RestraintSearch():
         
         # There must be a single molecule to be decoupled (or annihilated).
         if system.nDecoupledMolecules() != 1:
-            raise ValueError("The system must contain a single molecule to be decoupled! "
-                                "Use the 'BioSimSpace.Align.Decouple' function to mark a molecule"
-                                " to be decoupled.")
+            raise ValueError(
+                "The system must contain a single molecule to be decoupled! "
+                "Use the 'BioSimSpace.Align.Decouple' function to mark a molecule"
+                " to be decoupled."
+            )
 
         # Extract restraints from simulation
         # Get mdanalysis universe object
-        u = traj.getTrajectory(format='mdanalysis')
+        u = traj.getTrajectory(format="mdanalysis")
 
         # Find decoupled molecule and use it to create ligand selection
         decoupled_mol = _system.getDecoupledMolecules()[0]
         decoupled_resname = decoupled_mol.getResidues()[0].name()
 
-        lig_selection_str = f'((resname {decoupled_resname}) and (not name H*))'
-        if append_to_lig_selection:
-            lig_selection_str += ' and '
-            lig_selection_str += append_to_lig_selection
+        ligand_selection_str = f"((resname {decoupled_resname}) and (not name H*))"
+        if append_to_ligand_selection:
+            ligand_selection_str += " and "
+            ligand_selection_str += append_to_ligand_selection
 
-        if rest_type.lower() == 'boresch':
+        if restraint_type.lower() == "boresch":
             return RestraintSearch._boresch_restraint(
-                u, system, temperature, lig_selection_str,
+                u, system, temperature, ligand_selection_str,
                 recept_selection_str, method, work_dir, 
                 force_constant, cutoff,
                 restraint_idx=restraint_idx)
@@ -561,68 +666,73 @@ class RestraintSearch():
            Parameters
            ----------
 
-           u : MDAnalysis.Universe
-               The trajectory for the ABFE restraint calculation as a
-               MDAnalysis.Universe object.
+        Parameters
+        ----------
 
-           system : :class:`System <BioSimSpace._SireWrappers.System>`
-               The molecular system for the ABFE restraint calculation. This
-               must contain a single decoupled molecule and is assumed to have
-               already been equilibrated.
+        u : MDAnalysis.Universe
+            The trajectory for the ABFE restraint calculation as a
+            MDAnalysis.Universe object.
 
-           temperature : :class:`System <BioSimSpace.Types.Temperature>`
-               The temperature of the system
+        system : :class:`System <BioSimSpace._SireWrappers.System>`
+            The molecular system for the ABFE restraint calculation. This
+            must contain a single decoupled molecule and is assumed to have
+            already been equilibrated.
 
-           lig_selection_str: str
-               The selection string for the atoms in the ligand to consider
-               as potential anchor points.
+        temperature : :class:`System <BioSimSpace.Types.Temperature>`
+            The temperature of the system
 
-           recept_selection_str: str
-               The selection string for the atoms in the receptor to consider
-               as potential anchor points. Uses the mdanalysis atom selection
-               language.
+        ligand_selection_str : str
+            The selection string for the atoms in the ligand to consider
+            as potential anchor points.
 
-           method: str
-               The method to use to derive the restraints. 'BSS' or 'MDRestraintsGenerator'.
-               BSS uses the native BioSimSpace derivation.
+        receptor_selection_str : str
+            The selection string for the atoms in the receptor to consider
+            as potential anchor points. Uses the mdanalysis atom selection
+            language.
 
-           work_dir : str
-               The working directory for the simulation.
+        method : str
+            The method to use to derive the restraints. 'BSS' or 'MDRestraintsGenerator'.
+            BSS uses the native BioSimSpace derivation.
 
-           force_constant: BioSimSpace.Types.Energy / BioSimSpace.Types.Area
-               The force constant to use for all restraints. For angles, the units of
-               area will be converted to A-2 and exchanged for rad-2. If None, 
-               the default force constants are used, which are 10 kcal mol-1 A-2 [rad-2] when 
-               method == "MDRestraintsGenerator", or fit to fluctuations observed during
-               the simulation is method == "BSS".
+        work_dir : str
+            The working directory for the simulation.
 
-           cutoff: BioSimSpace.Types.Length
-               The greatest distance between ligand and receptor anchor atoms.
-               Only affects behaviour when method == "BSS" Receptor anchors 
-               further than cutoff Angstroms from the closest ligand anchors will not 
-               be included in the search for potential anchor points.
+        force_constant: BioSimSpace.Types.Energy / BioSimSpace.Types.Area
+            The force constant to use for all restraints. For angles, the units of
+            area will be converted to A-2 and exchanged for rad-2. If None, 
+            the default force constants are used, which are 10 kcal mol-1 A-2 [rad-2] when 
+            method == "MDRestraintsGenerator", or fit to fluctuations observed during
+            the simulation is method == "BSS".
 
-            restraint_idx: int
-                The index of the restraint from a list of candidate restraints ordered by
-                suitability. restraint_idx != 0 is only valid if method == 'BSS'.
+        cutoff: BioSimSpace.Types.Length
+            The greatest distance between ligand and receptor anchor atoms.
+            Only affects behaviour when method == "BSS" Receptor anchors 
+            further than cutoff Angstroms from the closest ligand anchors will not 
+            be included in the search for potential anchor points.
 
-           Returns
-           -------
+        restraint_idx: int
+            The index of the restraint from a list of candidate restraints ordered by
+            suitability. restraint_idx != 0 is only valid if method == 'BSS'.
 
-           restraint : :class:`Restraint <BioSimSpace.Sandpit.Exscientia.FreeEnergy.Restraint>`
-               The restraints of `rest_type` which best mimic the strongest receptor-ligand
-               interactions.
+        cutoff : BioSimSpace.Types.Length
+            The greatest distance between ligand and receptor anchor atoms, in
+            Angstrom. Receptor anchors further than cutoff Angstroms from the closest
+            ligand anchors will not be included in the search for potential anchor points.
 
+        Returns
+        -------
+
+        restraint : :class:`Restraint <BioSimSpace.Sandpit.Exscientia.FreeEnergy.Restraint>`
+            The restraints of `restraint_type` which best mimic the strongest receptor-ligand
+            interactions.
         """
         if method == "MDRestraintsGenerator":
             if restraint_idx != 0:
                 raise ValueError("restraint_idx must be 0 for MDRestraintsGenerator.")
-            if is_MDRestraintsGenerator:
+            else:
                 return RestraintSearch._boresch_restraint_MDRestraintsGenerator(
                     u, system, temperature, lig_selection_str,
                     recept_selection_str, force_constant, work_dir)
-            else:
-                raise ImportError('MDRestraintsGenerator not available.')
 
         elif method == "BSS":
             return RestraintSearch._boresch_restraint_BSS(
@@ -631,8 +741,8 @@ class RestraintSearch():
                 cutoff, restraint_idx=restraint_idx)
 
     @staticmethod
-    def _boresch_restraint_MDRestraintsGenerator(u, system, temperature, lig_selection_str,
-                           recept_selection_str, force_constant, work_dir):
+    def _boresch_restraint_MDRestraintsGenerator(u, system, temperature, ligand_selection_str,
+                           receptor_selection_str, force_constant, work_dir):
         """Generate the Boresch Restraint using MDRestraintsGenerator.
  
         Parameters
@@ -650,11 +760,11 @@ class RestraintSearch():
         temperature : :class:`System <BioSimSpace.Types.Temperature>`
             The temperature of the system
  
-        lig_selection_str: str
+        ligand_selection_str: str
             The selection string for the atoms in the ligand to consider
             as potential anchor points.
  
-        recept_selection_str: str
+        receptor_selection_str: str
             The selection string for the protein in the ligand to consider
             as potential anchor points.
  
@@ -676,19 +786,16 @@ class RestraintSearch():
             interactions.
         """
         ligand_atoms = _search.find_ligand_atoms(
-            u,
-            l_selection=lig_selection_str,
-            p_align=recept_selection_str)
+            u, l_selection=ligand_selection_str, p_align=receptor_selection_str
+        )
         # find protein atoms
         atom_set = []
         for l_atoms in ligand_atoms:
             psearch = _search.FindHostAtoms(
-                u,
-                l_atoms[0],
-                p_selection=recept_selection_str)
+                u, l_atoms[0], p_selection=receptor_selection_str
+            )
             psearch.run()
-            atom_set.extend(
-                [(l_atoms, p) for p in psearch.host_atoms])
+            atom_set.extend([(l_atoms, p) for p in psearch.host_atoms])
         # Create the boresch finder analysis object
         boresch = _FindBoreschRestraint(u, atom_set)
         # Run the restraint analysis
@@ -699,8 +806,8 @@ class RestraintSearch():
         # Write out the intermolecular section to a topology
         boresch.restraint.write(path=work_dir)
         dG_off = boresch.restraint.standard_state()
-        with open(f'{work_dir}/dG_off.dat', 'w') as writer:
-            writer.write(f'{dG_off}')
+        with open(f"{work_dir}/dG_off.dat", "w") as writer:
+            writer.write(f"{dG_off}")
 
         # This just shows how is the data being recorded, so the
         # index gets reassigned multiple times.
@@ -709,11 +816,14 @@ class RestraintSearch():
         l2_idx, l1_idx, r1_idx = boresch.restraint.angles[0].atomgroup.atoms.ix
         l1_idx, r1_idx, r2_idx = boresch.restraint.angles[1].atomgroup.atoms.ix
         l3_idx, l2_idx, l1_idx, r1_idx = boresch.restraint.dihedrals[
-            0].atomgroup.atoms.ix
+            0
+        ].atomgroup.atoms.ix
         l2_idx, l1_idx, r1_idx, r2_idx = boresch.restraint.dihedrals[
-            1].atomgroup.atoms.ix
+            1
+        ].atomgroup.atoms.ix
         l1_idx, r1_idx, r2_idx, r3_idx = boresch.restraint.dihedrals[
-            2].atomgroup.atoms.ix
+            2
+        ].atomgroup.atoms.ix
 
         # Select force constants
         if force_constant:
@@ -747,32 +857,38 @@ class RestraintSearch():
         restraint_dict = {
             # The default index is in the format of numpy.int64
             # So need to convert to int
-            "anchor_points": {"r1": system.getAtom(int(r1_idx)),
-                              "r2": system.getAtom(int(r2_idx)),
-                              "r3": system.getAtom(int(r3_idx)),
-                              "l1": system.getAtom(int(l1_idx)),
-                              "l2": system.getAtom(int(l2_idx)),
-                              "l3": system.getAtom(int(l3_idx))},
-            "equilibrium_values": {"r0": r0,
-                                   "thetaA0": thetaA0,
-                                   "thetaB0": thetaB0,
-                                   "phiA0": phiA0,
-                                   "phiB0": phiB0,
-                                   "phiC0": phiC0},
-            "force_constants": {"kr": kr,
-                                "kthetaA": kthetaA,
-                                "kthetaB": kthetaB,
-                                "kphiA": kphiA,
-                                "kphiB": kphiB,
-                                "kphiC": kphiC
-                                }}
+            "anchor_points": {
+                "r1": system.getAtom(int(r1_idx)),
+                "r2": system.getAtom(int(r2_idx)),
+                "r3": system.getAtom(int(r3_idx)),
+                "l1": system.getAtom(int(l1_idx)),
+                "l2": system.getAtom(int(l2_idx)),
+                "l3": system.getAtom(int(l3_idx)),
+            },
+            "equilibrium_values": {
+                "r0": r0,
+                "thetaA0": thetaA0,
+                "thetaB0": thetaB0,
+                "phiA0": phiA0,
+                "phiB0": phiB0,
+                "phiC0": phiC0,
+            },
+            "force_constants": {
+                "kr": kr,
+                "kthetaA": kthetaA,
+                "kthetaB": kthetaB,
+                "kphiA": kphiA,
+                "kphiB": kphiB,
+                "kphiC": kphiC,
+            },
+        }
         # TODO: extract the best frame and feed it into Restraint
         # Waiting for the BSS to fix the getFrames
         # best_frame = traj.getFrames(index)
         best_frame = system
         restraint = _Restraint(best_frame, restraint_dict,
                               temperature,
-                              rest_type='Boresch')
+                              restraint_type='Boresch')
         return restraint
 
     @staticmethod
@@ -968,15 +1084,16 @@ class RestraintSearch():
 
 
         def _getDistance(idx1, idx2, u):
-            """ Distance in Angstrom"""
-            distance = _dist(_mda.AtomGroup([u.atoms[idx1]]),
-                             _mda.AtomGroup([u.atoms[idx2]]),
-                             box=u.dimensions)[2][0]
+            """Distance in Angstrom."""
+            distance = _dist(
+                _mda.AtomGroup([u.atoms[idx1]]),
+                _mda.AtomGroup([u.atoms[idx2]]),
+                box=u.dimensions,
+            )[2][0]
             return distance
 
-
         def _getAngle(idx1, idx2, idx3, u):
-            """Angle in rad"""
+            """Angle in radians."""
             C = u.atoms[idx1].position
             B = u.atoms[idx2].position
             A = u.atoms[idx3].position
@@ -1303,8 +1420,7 @@ class RestraintSearch():
 
             # Check we have found all anchors
             if not len(anchor_ats) == 6:
-                raise _AnalysisError(
-                    "Could not find all anchor atoms in system")
+                raise _AnalysisError("Could not find all anchor atoms in system")
 
             # Get remaining parameters
             r0 = boresch_dof_data[pair]["r"]["avg"]
@@ -1345,7 +1461,7 @@ class RestraintSearch():
                                     "kphiC": kphiC * _kcal_per_mol / (
                                                 _radian * _radian)}}
 
-            restraint =  _Restraint(system, restraint_dict, temperature=temperature, rest_type='Boresch')
+            restraint =  _Restraint(system, restraint_dict, temperature=temperature, restraint_type='Boresch')
             return restraint
 
 

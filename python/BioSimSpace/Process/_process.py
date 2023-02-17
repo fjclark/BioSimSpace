@@ -1,13 +1,13 @@
 ######################################################################
 # BioSimSpace: Making biomolecular simulation a breeze!
 #
-# Copyright: 2017-2022
+# Copyright: 2017-2023
 #
 # Authors: Lester Hedges <lester.hedges@gmail.com>
 #
 # BioSimSpace is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 2 of the License, or
+# the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
 # BioSimSpace is distributed in the hope that it will be useful,
@@ -19,9 +19,7 @@
 # along with BioSimSpace. If not, see <http://www.gnu.org/licenses/>.
 #####################################################################
 
-"""
-Functionality for running simulation processes.
-"""
+"""Functionality for running simulation processes."""
 
 __author__ = "Lester Hedges"
 __email__ = "lester.hedges@gmail.com"
@@ -43,7 +41,7 @@ import sys as _sys
 import tempfile as _tempfile
 import zipfile as _zipfile
 
-from Sire import Mol as _SireMol
+from sire.legacy import Mol as _SireMol
 
 from .. import _is_interactive, _is_notebook
 from .._Exceptions import IncompatibleError as _IncompatibleError
@@ -56,40 +54,61 @@ from .. import Units as _Units
 if _is_notebook:
     from IPython.display import FileLink as _FileLink
 
+
 class _MultiDict(dict):
     """A multi-valued dictionary."""
+
     def __setitem__(self, key, value):
         """Add the given value to the list of values for this key."""
         self.setdefault(key, []).append(value)
 
-class Process():
+
+class Process:
     """Base class for running different biomolecular simulation processes."""
 
-    def __init__(self, system, protocol, name=None, work_dir=None, seed=None, property_map={}):
-        """Constructor.
+    def __init__(
+        self,
+        system,
+        protocol,
+        name=None,
+        work_dir=None,
+        seed=None,
+        extra_options={},
+        extra_lines=[],
+        property_map={},
+    ):
+        """
+        Constructor.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           system : :class:`System <BioSimSpace._SireWrappers.System>`
-               The molecular system.
+        system : :class:`System <BioSimSpace._SireWrappers.System>`
+            The molecular system.
 
-           protocol : :class:`Protocol <BioSimSpace.Protocol>`
-               The protocol for the process.
+        protocol : :class:`Protocol <BioSimSpace.Protocol>`
+            The protocol for the process.
 
-           name : str
-               The name of the process.
+        name : str
+            The name of the process.
 
-           work_dir : str
-               The working directory for the process.
+        work_dir : str
+            The working directory for the process.
 
-           seed : int
-               A random number seed.
+        seed : int
+            A random number seed.
 
-           property_map : dict
-               A dictionary that maps system "properties" to their user defined
-               values. This allows the user to refer to properties with their
-               own naming scheme, e.g. { "charge" : "my-charge" }
+        extra_options : dict
+            A dictionary containing extra options. Overrides the defaults generated
+            by the protocol.
+
+        extra_lines : [str]
+            A list of extra lines to put at the end of the configuration file.
+
+        property_map : dict
+            A dictionary that maps system "properties" to their user defined
+            values. This allows the user to refer to properties with their
+            own naming scheme, e.g. { "charge" : "my-charge" }
         """
 
         # Don't allow user to create an instance of this base class.
@@ -98,13 +117,17 @@ class Process():
 
         # Check that the system is valid.
         if not isinstance(system, _System):
-            raise TypeError("'system' must be of type 'BioSimSpace._SireWrappers.System'")
+            raise TypeError(
+                "'system' must be of type 'BioSimSpace._SireWrappers.System'"
+            )
 
         # Make sure the system is parameterised.
         if not system._isParameterised():
-            raise _IncompatibleError("Cannot execute a Process for this System since it appears "
-                                     "to contain molecules that are not parameterised. Consider "
-                                     "using the 'BioSimSpace.Parameters' package.")
+            raise _IncompatibleError(
+                "Cannot execute a Process for this System since it appears "
+                "to contain molecules that are not parameterised. Consider "
+                "using the 'BioSimSpace.Parameters' package."
+            )
 
         # Check that the protocol is valid.
         if not isinstance(protocol, _Protocol):
@@ -118,6 +141,21 @@ class Process():
         if seed is not None and not type(seed) is int:
             raise TypeError("'seed' must be of type 'int'")
 
+        # Check the extra options.
+        if not isinstance(extra_options, dict):
+            raise TypeError("'extra_options' must be of type 'dict'.")
+        else:
+            keys = extra_options.keys()
+            if not all(isinstance(k, str) for k in keys):
+                raise TypeError("Keys of 'extra_options' must be of type 'str'.")
+
+        # Check the extra lines.
+        if not isinstance(extra_lines, list):
+            raise TypeError("'extra_lines' must be of type 'list'.")
+        else:
+            if not all(isinstance(line, str) for line in extra_lines):
+                raise TypeError("Lines in 'extra_lines' must be of type 'str'.")
+
         # Check that the map is valid.
         if not isinstance(property_map, dict):
             raise TypeError("'property_map' must be of type 'dict'")
@@ -127,7 +165,9 @@ class Process():
         for mol in system.getMolecules():
             if not mol.isPerturbable():
                 if not mol._sire_object.hasProperty(prop):
-                    raise _IncompatibleError("System object contains molecules without coordinates!")
+                    raise _IncompatibleError(
+                        "System object contains molecules without coordinates!"
+                    )
 
         # Set the process to None.
         self._process = None
@@ -170,6 +210,10 @@ class Process():
         else:
             self._is_seeded = True
             self.setSeed(seed)
+
+        # Set the extra options and lines.
+        self._extra_options = extra_options
+        self._extra_lines = extra_lines
 
         # Set the map.
         self._property_map = property_map.copy()
@@ -221,19 +265,40 @@ class Process():
         # Initialise the molecule index mapping. This is used to re-map molecules
         # that are loaded from trajectory/restart files to those in the original
         # system. By default, we assume that the indices map directly.
-        self._mapping = {_SireMol.MolIdx(x) : _SireMol.MolIdx(x) for x in range(0, self._system.nMolecules())}
+        self._mapping = {
+            _SireMol.MolIdx(x): _SireMol.MolIdx(x)
+            for x in range(0, self._system.nMolecules())
+        }
 
     def __str__(self):
         """Return a human readable string representation of the object."""
-        return "<BioSimSpace.Process.%s: system=%s, protocol=%s, exe='%s', name='%s', work_dir='%s', seed=%s>" \
-            % (self.__class__.__name__, str(self._system), self._protocol.__repr__(),
-               self._exe, self._name, self._work_dir, self._seed)
+        return (
+            "<BioSimSpace.Process.%s: system=%s, protocol=%s, exe='%s', name='%s', work_dir='%s', seed=%s>"
+            % (
+                self.__class__.__name__,
+                str(self._system),
+                self._protocol.__repr__(),
+                self._exe,
+                self._name,
+                self._work_dir,
+                self._seed,
+            )
+        )
 
     def __repr__(self):
         """Return a string showing how to instantiate the object."""
-        return "BioSimSpace.Process.%s(%s, %s, exe='%s', name='%s', work_dir='%s', seed=%s)" \
-            % (self.__class__.__name__, str(self._system), self._protocol.__repr__(),
-               self._exe, self._name, self._work_dir, self._seed)
+        return (
+            "BioSimSpace.Process.%s(%s, %s, exe='%s', name='%s', work_dir='%s', seed=%s)"
+            % (
+                self.__class__.__name__,
+                str(self._system),
+                self._protocol.__repr__(),
+                self._exe,
+                self._name,
+                self._work_dir,
+                self._seed,
+            )
+        )
 
     def _clear_output(self):
         """Reset stdout and stderr."""
@@ -262,25 +327,27 @@ class Process():
             _os.remove(file)
 
     def _getPlumedConfig(self):
-        """Return the list of PLUMED configuration strings.
+        """
+        Return the list of PLUMED configuration strings.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           config : [str]
-               The list of PLUMED configuration strings.
+        config : [str]
+            The list of PLUMED configuration strings.
         """
         return self._plumed_config
 
     def _setPlumedConfig(self, config):
-        """Set the list of PLUMED configuration file strings.
+        """
+        Set the list of PLUMED configuration file strings.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           config : str, [str]
-               The list of PLUMED configuration strings, or a path to a configuration
-               file.
+        config : str, [str]
+            The list of PLUMED configuration strings, or a path to a configuration
+            file.
         """
 
         # Check that the passed configuration is a list of strings.
@@ -290,7 +357,6 @@ class Process():
 
         # The user has passed a path to a file.
         elif _os.path.isfile(config):
-
             # Clear the existing config.
             self._plumed_config = []
 
@@ -309,33 +375,35 @@ class Process():
         self._protocol._setCustomised(True)
 
     def _getPlumedConfigFile(self):
-        """Return path to the PLUMED config file.
+        """
+        Return path to the PLUMED config file.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           config_file : str
-               The path to the PLUMED config file.
+        config_file : str
+            The path to the PLUMED config file.
         """
         return self._plumed_config_file
 
     def _getTime(self, time_series=False, block="AUTO"):
-        """Get the time (in nanoseconds).
+        """
+        Get the time (in nanoseconds).
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           time_series : bool
-               Whether to return a list of time series records.
+        time_series : bool
+            Whether to return a list of time series records.
 
-           block : bool
-               Whether to block until the process has finished running.
+        block : bool
+            Whether to block until the process has finished running.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           time : :class:`Time <BioSimSpace.Types.Time>`
-               The current simulation time in nanoseconds.
+        time : :class:`Time <BioSimSpace.Types.Time>`
+            The current simulation time in nanoseconds.
         """
 
         # Check that this is a metadynamics simulation.
@@ -352,25 +420,26 @@ class Process():
         return self._plumed.getTime(time_series)
 
     def _getCollectiveVariable(self, index, time_series=False, block="AUTO"):
-        """Get the value of a collective variable.
+        """
+        Get the value of a collective variable.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           index : int
-               The index of the collective variable.
+        index : int
+            The index of the collective variable.
 
-           time_series : bool
-               Whether to return a list of time series records.
+        time_series : bool
+            Whether to return a list of time series records.
 
-           block : bool
-               Whether to block until the process has finished running.
+        block : bool
+            Whether to block until the process has finished running.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           collective_variable : :class:`Type <BioSimSpace.Types>`
-               The value of the collective variable.
+        collective_variable : :class:`Type <BioSimSpace.Types>`
+            The value of the collective variable.
         """
 
         # Check that this is a metadynamics simulation.
@@ -386,7 +455,9 @@ class Process():
         # Use the PLUMED interface to get the required data.
         return self._plumed.getCollectiveVariable(index, time_series)
 
-    def _getFreeEnergy(self, index=None, stride=None, kt=_Units.Energy.kt, block="AUTO"):
+    def _getFreeEnergy(
+        self, index=None, stride=None, kt=_Units.Energy.kt, block="AUTO"
+    ):
         """Get the current free energy estimate.
 
            Parameters
@@ -428,30 +499,31 @@ class Process():
         return self._plumed.getFreeEnergy(index, stride, kt)
 
     def _sampleConfigurations(self, bounds, number=1, block="AUTO"):
-        """Sample configurations based on values of the collective variable(s).
+        """
+        Sample configurations based on values of the collective variable(s).
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           bounds : [(:class:`Type <BioSimSpace.Types>`, :class:`Type <BioSimSpace.TYpes>`), ...]
-               The lower and uppoer bound for each collective variable. Use None
-               if there is no restriction of the value of a particular collective
-               variable.
+        bounds : [(:class:`Type <BioSimSpace.Types>`, :class:`Type <BioSimSpace.TYpes>`), ...]
+            The lower and uppoer bound for each collective variable. Use None
+            if there is no restriction of the value of a particular collective
+            variable.
 
-           number : int
-               The (maximum) number of configurations to return.
+        number : int
+            The (maximum) number of configurations to return.
 
-           block : bool
-               Whether to block until the process has finished running.
+        block : bool
+            Whether to block until the process has finished running.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           configurations : [:class:`System <BioSimSpace._SireWrappers.System>`]
-               A list of randomly sampled molecular configurations.
+        configurations : [:class:`System <BioSimSpace._SireWrappers.System>`]
+            A list of randomly sampled molecular configurations.
 
-           collective_variables : [(:class:`Type <BioSimSpace.Types>`, int, float, ...)]
-               The value of the collective variable for each configuration.
+        collective_variables : [(:class:`Type <BioSimSpace.Types>`, int, float, ...)]
+            The value of the collective variable for each configuration.
         """
 
         if not type(number) is int:
@@ -465,11 +537,15 @@ class Process():
 
         # Make sure the number of bounds matches the number of collective variables.
         if len(bounds) != self._plumed._num_colvar:
-            raise ValueError("'bounds' must contain %d values!" % self._plumed._num_colvar)
+            raise ValueError(
+                "'bounds' must contain %d values!" % self._plumed._num_colvar
+            )
 
         # General error message for invalid bounds argument.
-        msg = "'bounds' must contain tuples with the lower and upper bound " \
-              "for each collective variable."
+        msg = (
+            "'bounds' must contain tuples with the lower and upper bound "
+            "for each collective variable."
+        )
 
         # Store the list of collective variable names and their units.
         names = self._plumed._colvar_name
@@ -478,7 +554,6 @@ class Process():
         # Make sure the values of the bounds match the types of the collective
         # variables to which they correspond.
         for x, bound in enumerate(bounds):
-
             # Extract the unit of the collective variable. (Its type)
             unit = units[names[x]]
 
@@ -490,8 +565,10 @@ class Process():
                 for value in bound:
                     if value is not None:
                         if type(value) is not type(unit):
-                            raise ValueError("Each value in 'bounds' must be None or match the type "
-                                             "of the collective variable to which it corresponds.")
+                            raise ValueError(
+                                "Each value in 'bounds' must be None or match the type "
+                                "of the collective variable to which it corresponds."
+                            )
             else:
                 raise ValueError(msg)
 
@@ -510,7 +587,9 @@ class Process():
 
         # Store each collective variable time-series record.
         for x in range(0, self._plumed._num_colvar):
-            colvars.append(self._getCollectiveVariable(x, time_series=True, block=block))
+            colvars.append(
+                self._getCollectiveVariable(x, time_series=True, block=block)
+            )
 
             # Does this record have fewer records than those already recorded?
             if len(colvars[-1]) < min_records:
@@ -524,13 +603,11 @@ class Process():
 
         # Loop over all records.
         for x in range(0, min_records):
-
             # Whether this record is valid.
             is_valid = True
 
             # Loop over all collective variables.
             for y in range(0, self._plumed._num_colvar):
-
                 # Extract the corresponding collective variable sample.
                 colvar = colvars[y][x]
 
@@ -582,37 +659,41 @@ class Process():
         return configs, colvar_vals
 
     def _checkPerturbable(self, system):
-        """Helper function to check for perturble molecules and convert to the
-           desired end state.
+        """
+        Helper function to check for perturble molecules and convert to the
+        desired end state.
 
-           Parameters
-           ---------
+        Parameters
+        ----------
 
-           system : :class:`System <BioSimSpace._SireWrappers.System>`
-               The molecular system.
+        system : :class:`System <BioSimSpace._SireWrappers.System>`
+            The molecular system.
 
+        Returns
+        -------
 
-           Returns
-           -------
-
-           system : :class:`System <BioSimSpace._SireWrappers.System>`
-               The molecular system at a given end state.
+        system : :class:`System <BioSimSpace._SireWrappers.System>`
+            The molecular system at a given end state.
         """
 
         # Check that the system is valid.
         if not isinstance(system, _System):
-            raise TypeError("'system' must be of type 'BioSimSpace._SireWrappers.System'")
+            raise TypeError(
+                "'system' must be of type 'BioSimSpace._SireWrappers.System'"
+            )
 
         # If the system contains a perturbable molecule, then we'll warn the user
         # and simulate the lambda = 0 state.
         if system.nPerturbableMolecules() > 0:
             if not "is_lambda1" in self._property_map:
                 is_lambda1 = False
-                _warnings.warn("The system contains a perturbable molecule ."
-                                "We will assume that you intend to simulate the "
-                                "lambda = 0 state. If you want to simulate the "
-                                "lambda = 1 state, then pass {'is_lambda1' : True} "
-                                "in the 'property_map' argument.")
+                _warnings.warn(
+                    "The system contains a perturbable molecule ."
+                    "We will assume that you intend to simulate the "
+                    "lambda = 0 state. If you want to simulate the "
+                    "lambda = 1 state, then pass {'is_lambda1' : True} "
+                    "in the 'property_map' argument."
+                )
             else:
                 is_lambda1 = self._property_map["is_lambda1"]
                 self._property_map.pop("is_lambda1")
@@ -620,50 +701,61 @@ class Process():
             # Loop over all perturbable molecules in the system and replace them
             # with a regular molecule and the chosen end state.
             for mol in system.getPerturbableMolecules():
-                system.updateMolecules(mol._toRegularMolecule(property_map=self._property_map,
-                                                              is_lambda1=is_lambda1,
-                                                              convert_amber_dummies=True))
+                system.updateMolecules(
+                    mol._toRegularMolecule(
+                        property_map=self._property_map,
+                        is_lambda1=is_lambda1,
+                        convert_amber_dummies=True,
+                    )
+                )
 
             # Copy across the properties from the original system.
             for prop in self._system._sire_object.propertyKeys():
-                system._sire_object.setProperty(prop, self._system._sire_object.property(prop))
+                system._sire_object.setProperty(
+                    prop, self._system._sire_object.property(prop)
+                )
 
         return system
 
     def start(self):
-        """Start the process.
-
-           Returns
-           -------
-
-           process : :class:`Process.Amber <BioSimSpace.Process.Amber>`
-               The process object.
         """
-        raise NotImplementedError("Derived method 'BioSimSpace.Process.%s.start()' is not implemented!" % self.__class__.__name__)
+        Start the process.
+
+        Returns
+        -------
+
+        process : :class:`Process.Amber <BioSimSpace.Process.Amber>`
+            The process object.
+        """
+        raise NotImplementedError(
+            "Derived method 'BioSimSpace.Process.%s.start()' is not implemented!"
+            % self.__class__.__name__
+        )
 
     def run(self, system=None, protocol=None, auto_start=True, restart=False):
-        """Create and run a new process.
+        """
+        Create and run a new process.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           system : :class:`System <BioSimSpace._SireWrappers.System>`
-               The molecular system.
+        system : :class:`System <BioSimSpace._SireWrappers.System>`
+            The molecular system.
 
-           protocol : :class:`Protocol <BioSimSpace.Protocol>`
-               The simulation protocol.
+        protocol : :class:`Protocol <BioSimSpace.Protocol>`
+            The simulation protocol.
 
-           auto_start : bool
-               Whether to start the process automatically.
+        auto_start : bool
+            Whether to start the process automatically.
 
-           restart : bool
-               Whether to restart the simulation, i.e. use the original system.
+        restart : bool
+            Whether to restart the simulation, i.e. use the original system.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           process : :class:`Procees <BioSimSpace.Process>`
-               The new process object.
+        process : :class:`Procees <BioSimSpace.Process>`
+            The new process object.
         """
 
         # Try to get the current system.
@@ -677,7 +769,9 @@ class Process():
         # Check that the new system is valid.
         else:
             if not isinstance(system, _System):
-                raise TypeError("'system' must be of type 'BioSimSpace._SireWrappers.System'")
+                raise TypeError(
+                    "'system' must be of type 'BioSimSpace._SireWrappers.System'"
+                )
 
         # Use the existing protocol.
         if protocol is None:
@@ -698,34 +792,37 @@ class Process():
             return process
 
     def getPackageName(self):
-        """Return the package name.
+        """
+        Return the package name.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           name : str
-               The name of the package.
+        name : str
+            The name of the package.
         """
         return self._package_name
 
     def getName(self):
-        """Return the process name.
+        """
+        Return the process name.
 
-           Returns:
+        Returns:
 
-           name : str
-               The name of the process.
+        name : str
+            The name of the process.
         """
         return self._name
 
     def setName(self, name):
-        """Set the process name.
+        """
+        Set the process name.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           name : str
-               The process name.
+        name : str
+            The process name.
         """
 
         if not isinstance(name, str):
@@ -734,24 +831,26 @@ class Process():
             self._name = name
 
     def getSeed(self):
-        """Return the random number seed.
+        """
+        Return the random number seed.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           seed : int
-               The random number seed.
+        seed : int
+            The random number seed.
         """
         return self._seed
 
     def setSeed(self, seed):
-        """Set the random number seed.
+        """
+        Set the random number seed.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           seed : int
-               The random number seed.
+        seed : int
+            The random number seed.
         """
 
         if not type(seed) is int:
@@ -761,13 +860,14 @@ class Process():
             self._seed = seed
 
     def wait(self, max_time=None):
-        """Wait for the process to finish.
+        """
+        Wait for the process to finish.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           max_time: :class:`Time <BioSimSpace.Types.Time>`, int, float
-               The maximum time to wait (in minutes).
+        max_time : :class:`Time <BioSimSpace.Types.Time>`, int, float
+            The maximum time to wait (in minutes).
         """
 
         # The process isn't running.
@@ -792,7 +892,9 @@ class Process():
                 max_time = int(max_time * 60 * 1000)
 
             else:
-                raise TypeError("'max_time' must be of type 'BioSimSpace.Types.Time' or 'float'.")
+                raise TypeError(
+                    "'max_time' must be of type 'BioSimSpace.Types.Time' or 'float'."
+                )
 
             # Wait for the desired amount of time.
             self._process.wait(max_time)
@@ -802,24 +904,26 @@ class Process():
             self._process.wait()
 
     def isQueued(self):
-        """Return whether the process is queued.
+        """
+        Return whether the process is queued.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           is_queued : bool
-               Whether the process is queued.
+        is_queued : bool
+            Whether the process is queued.
         """
         return self._is_queued
 
     def isRunning(self):
-        """Return whether the process is running.
+        """
+        Return whether the process is running.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           is_running : bool
-               Whether the process is running.
+        is_running : bool
+            Whether the process is running.
         """
         try:
             return self._process.isRunning()
@@ -827,13 +931,14 @@ class Process():
             return False
 
     def isError(self):
-        """Return whether the process exited with an error.
+        """
+        Return whether the process exited with an error.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           is_error : bool
-               Whether the process exited with an error.
+        is_error : bool
+            Whether the process exited with an error.
         """
         try:
             return self._process.isError()
@@ -846,13 +951,14 @@ class Process():
             self._process.kill()
 
     def stdout(self, n=10):
-        """Print the last n lines of the stdout buffer.
+        """
+        Print the last n lines of the stdout buffer.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           n : int
-               The number of lines to print.
+        n : int
+            The number of lines to print.
         """
 
         # Ensure that the number of lines is positive.
@@ -877,13 +983,14 @@ class Process():
             print(self._stdout[x])
 
     def stderr(self, n=10):
-        """Print the last n lines of the stderr buffer.
+        """
+        Print the last n lines of the stderr buffer.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           n : int
-               The number of lines to print.
+        n : int
+            The number of lines to print.
         """
 
         # Ensure that the number of lines is positive.
@@ -908,52 +1015,56 @@ class Process():
             print(self._stderr[x])
 
     def exe(self):
-        """Return the executable.
+        """
+        Return the executable.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           exe : str
-               The path to the executable.
+        exe : str
+            The path to the executable.
         """
         return self._exe
 
     def inputFiles(self):
-        """Return the list of input files.
+        """
+        Return the list of input files.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           input_files : [str]
-               The list of autogenerated input files.
+        input_files : [str]
+            The list of autogenerated input files.
         """
         return self._input_files.copy()
 
     def workDir(self):
-        """Return the working directory.
+        """
+        Return the working directory.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           work_dir : str
-               The path of the working directory.
+        work_dir : str
+            The path of the working directory.
         """
         return self._work_dir
 
     def getStdout(self, block="AUTO"):
-        """Return the entire stdout for the process as a list of strings.
+        """
+        Return the entire stdout for the process as a list of strings.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           block : bool
-               Whether to block until the process has finished running.
+        block : bool
+            Whether to block until the process has finished running.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           output : [str]
-               The list of stdout strings.
+        output : [str]
+            The list of stdout strings.
         """
 
         # Wait for the process to finish.
@@ -969,19 +1080,20 @@ class Process():
         return self._stdout.copy()
 
     def getStderr(self, block="AUTO"):
-        """Return the entire stderr for the process as a list of strings.
+        """
+        Return the entire stderr for the process as a list of strings.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           block : bool
-               Whether to block until the process has finished running.
+        block : bool
+            Whether to block until the process has finished running.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           error : [str]
-               The list of stderror strings.
+        error : [str]
+            The list of stderror strings.
         """
 
         # Wait for the process to finish.
@@ -997,23 +1109,24 @@ class Process():
         return self._stderr.copy()
 
     def getInput(self, name=None, file_link=False):
-        """Return a link to a zip file containing the input files used by
-           the process.
+        """
+        Return a link to a zip file containing the input files used by
+        the process.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           name : str
-               The name of the zip file.
+        name : str
+            The name of the zip file.
 
-           file_link : bool
-               Whether to return a FileLink when working in Jupyter.
+        file_link : bool
+            Whether to return a FileLink when working in Jupyter.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           output : str, IPython.display.FileLink
-               A path, or file link, to an archive of the process input.
+        output : str, IPython.display.FileLink
+            A path, or file link, to an archive of the process input.
         """
 
         if name is None:
@@ -1037,7 +1150,9 @@ class Process():
                 f_link = _FileLink(zipname)
 
                 # Set the download attribute so that JupyterLab doesn't try to open the file.
-                f_link.html_link_str = f"<a href='%s' target='_blank' download='{zipname}'>%s</a>"
+                f_link.html_link_str = (
+                    f"<a href='%s' target='_blank' download='{zipname}'>%s</a>"
+                )
 
                 # Return a link to the archive.
                 return f_link
@@ -1048,25 +1163,26 @@ class Process():
             return zipname
 
     def getOutput(self, name=None, block="AUTO", file_link=False):
-        """Return a link to a zip file of the working directory.
+        """
+        Return a link to a zip file of the working directory.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           name : str
-               The name of the zip file.
+        name : str
+            The name of the zip file.
 
-           block : bool
-               Whether to block until the process has finished running.
+        block : bool
+            Whether to block until the process has finished running.
 
-           file_link : bool
-               Whether to return a FileLink when working in Jupyter.
+        file_link : bool
+            Whether to return a FileLink when working in Jupyter.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           output : str, IPython.display.FileLink
-               A path, or file link, to an archive of the process output.
+        output : str, IPython.display.FileLink
+            A path, or file link, to an archive of the process output.
         """
 
         if name is None:
@@ -1103,36 +1219,39 @@ class Process():
             return zipname
 
     def command(self):
-        """Return the command-line string used to run the process.
+        """
+        Return the command-line string used to run the process.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           command : str
-               The command string.
+        command : str
+            The command string.
         """
         return self._command
 
     def getConfig(self):
-        """Get the list of configuration file strings.
+        """
+        Get the list of configuration file strings.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           config : [str]
-               The list of configuration strings.
+        config : [str]
+            The list of configuration strings.
         """
         return self._config.copy()
 
     def setConfig(self, config):
-        """Set the list of configuration file strings.
+        """
+        Set the list of configuration file strings.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           config : str, [str]
-               The list of configuration strings, or a path to a configuration
-               file.
+        config : str, [str]
+            The list of configuration strings, or a path to a configuration
+            file.
         """
 
         # Check that the passed configuration is a list of strings.
@@ -1142,7 +1261,6 @@ class Process():
 
         # The user has passed a path to a file.
         elif _os.path.isfile(config):
-
             # Clear the existing config.
             self._config = []
 
@@ -1161,14 +1279,15 @@ class Process():
         self._protocol._setCustomised(True)
 
     def addToConfig(self, config):
-        """Add a string to the configuration list.
+        """
+        Add a string to the configuration list.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           config : str, [ str ]
-               A configuration string, a list of configuration strings, or a
-               path to a configuration file.
+        config : str, [ str ]
+            A configuration string, a list of configuration strings, or a
+            path to a configuration file.
         """
 
         # Append a single string.
@@ -1183,7 +1302,6 @@ class Process():
 
         # A path to a file.
         elif _os.path.isfile(config):
-
             # Read the contents of the file.
             with open(config, "r") as file:
                 for line in file:
@@ -1193,7 +1311,9 @@ class Process():
             self.writeConfig(self._config_file)
 
         else:
-            raise ValueError("'config' must be a string, list of strings, or a file path.")
+            raise ValueError(
+                "'config' must be a string, list of strings, or a file path."
+            )
 
         # Flag that the protocol has been customised.
         self._protocol._setCustomised(True)
@@ -1209,13 +1329,14 @@ class Process():
         self._protocol._setCustomised(False)
 
     def writeConfig(self, file):
-        """Write the configuration to file.
+        """
+        Write the configuration to file.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           file : str
-               The path to a file.
+        file : str
+            The path to a file.
         """
         if not isinstance(file, str):
             raise TypeError("'file' must be of type 'str'")
@@ -1225,13 +1346,14 @@ class Process():
                 f.write("%s\n" % line)
 
     def _writePlumedConfig(self, file):
-        """Write the PLUMED configuration to file.
+        """
+        Write the PLUMED configuration to file.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           file : str
-               The path to a file.
+        file : str
+            The path to a file.
         """
         if not isinstance(file, str):
             raise TypeError("'file' must be of type 'str'")
@@ -1241,35 +1363,38 @@ class Process():
                 f.write("%s\n" % line)
 
     def getArgs(self):
-        """Get the dictionary of command-line arguments.
+        """
+        Get the dictionary of command-line arguments.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           args : collections.OrderedDict
-               The dictionary of command-line arguments.
+        args : collections.OrderedDict
+            The dictionary of command-line arguments.
         """
         return self._args.copy()
 
     def getArgString(self):
-        """Get the command-line arguments string.
+        """
+        Get the command-line arguments string.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           arg_string : str
-               The command-line argument string.
+        arg_string : str
+            The command-line argument string.
         """
         return " ".join(self.getArgStringList())
 
     def getArgStringList(self):
-        """Convert the argument dictionary into a list of strings.
+        """
+        Convert the argument dictionary into a list of strings.
 
-           Returns
-           -------
+        Returns
+        -------
 
-           arg_string_list : [str]
-               The list of command-line arguments.
+        arg_string_list : [str]
+            The list of command-line arguments.
         """
 
         # Create an empty list.
@@ -1290,13 +1415,14 @@ class Process():
         return args
 
     def setArgs(self, args):
-        """Set the dictionary of command-line arguments.
+        """
+        Set the dictionary of command-line arguments.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           args : dict, collections.OrderedDict
-               A dictionary of command-line arguments.
+        args : dict, collections.OrderedDict
+            A dictionary of command-line arguments.
         """
         if isinstance(args, _collections.OrderedDict):
             self._args = args
@@ -1305,22 +1431,25 @@ class Process():
             self._args = _collections.OrderedDict(args)
 
         else:
-            raise TypeError("'args' must be of type 'dict' or 'collections.OrderedDict'")
+            raise TypeError(
+                "'args' must be of type 'dict' or 'collections.OrderedDict'"
+            )
 
     def setArg(self, arg, value):
-        """Set a specific command-line argument.
+        """
+        Set a specific command-line argument.
 
-           For command-line flags, i.e. boolean arguments, the key should
-           specify whether the flag is enabled (True) or not (False).
+        For command-line flags, i.e. boolean arguments, the key should
+        specify whether the flag is enabled (True) or not (False).
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           arg : str
-               The argument to set.
+        arg : str
+            The argument to set.
 
-           value : bool, str
-               The value of the argument.
+        value : bool, str
+            The value of the argument.
         """
 
         if not isinstance(arg, str):
@@ -1329,19 +1458,20 @@ class Process():
         self._args[arg] = value
 
     def insertArg(self, arg, value, index):
-        """Insert a command-line argument at a specific index.
+        """
+        Insert a command-line argument at a specific index.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           arg : str
-               The argument to set.
+        arg : str
+            The argument to set.
 
-           value :
-               The value of the argument.
+        value :
+            The value of the argument.
 
-           index : int
-               The index in the dictionary.
+        index : int
+            The index in the dictionary.
         """
 
         if not isinstance(arg, str):
@@ -1350,28 +1480,32 @@ class Process():
         _odict_insert(self._args, arg, value, index)
 
     def addArgs(self, args):
-        """Append additional command-line arguments.
+        """
+        Append additional command-line arguments.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           args : dict, collections.OrderedDict
-               A dictionary of command line arguments.
+        args : dict, collections.OrderedDict
+            A dictionary of command line arguments.
         """
         if isinstance(args, dict) or isinstance(args, _collections.OrderedDict):
             for arg, value in args.items():
                 self._args[arg] = value
         else:
-            raise TypeError("'args' must be of type 'dict' or 'collections.OrderedDict'")
+            raise TypeError(
+                "'args' must be of type 'dict' or 'collections.OrderedDict'"
+            )
 
     def deleteArg(self, arg):
-        """Delete an argument from the dictionary.
+        """
+        Delete an argument from the dictionary.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           arg : str
-               The argument to delete.
+        arg : str
+            The argument to delete.
         """
         try:
             del self._args[arg]
@@ -1388,13 +1522,14 @@ class Process():
         self._generate_args()
 
     def runTime(self):
-        """Return the running time for the process (in minutes).
+        """
+        Return the running time for the process (in minutes).
 
-           Returns
-           -------
+        Returns
+        -------
 
-           runtime : :class:`Time <BioSimSpace.Types.Time>`
-               The runtime in minutes.
+        runtime : :class:`Time <BioSimSpace.Types.Time>`
+            The runtime in minutes.
         """
 
         # The process is still running.
@@ -1419,42 +1554,51 @@ class Process():
                     return self._runtime * _Units.Time.minute
 
     def getSystem(self, block="AUTO"):
-        """Get the latest molecular system.
-
-           Parameters
-           ----------
-
-           block : bool
-               Whether to block until the process has finished running.
-
-           Returns
-           -------
-
-           system : :class:`System <BioSimSpace._SireWrappers.System>`
-               The latest molecular system.
         """
-        raise NotImplementedError("Derived method 'BioSimSpace.Process.%s.getSystem()' is not implemented!" % self.__class__.__name__)
+        Get the latest molecular system.
+
+        Parameters
+        ----------
+
+        block : bool
+            Whether to block until the process has finished running.
+
+        Returns
+        -------
+
+        system : :class:`System <BioSimSpace._SireWrappers.System>`
+            The latest molecular system.
+        """
+        raise NotImplementedError(
+            "Derived method 'BioSimSpace.Process.%s.getSystem()' is not implemented!"
+            % self.__class__.__name__
+        )
 
     def getTrajectory(self, block="AUTO"):
-        """Return a trajectory object.
-
-           Parameters
-           ----------
-
-           block : bool
-               Whether to block until the process has finished running.
-
-           Returns
-           -------
-
-           trajectory : :class:`Trajectory <BioSimSpace.Trajectory.Trajectory>`
-               The latest trajectory object.
         """
-        raise NotImplementedError("Derived method 'BioSimSpace.Process.%s.getTrajectory()' is not implemented!" % self.__class__.__name__)
+        Return a trajectory object.
+
+        Parameters
+        ----------
+
+        block : bool
+            Whether to block until the process has finished running.
+
+        Returns
+        -------
+
+        trajectory : :class:`Trajectory <BioSimSpace.Trajectory.Trajectory>`
+            The latest trajectory object.
+        """
+        raise NotImplementedError(
+            "Derived method 'BioSimSpace.Process.%s.getTrajectory()' is not implemented!"
+            % self.__class__.__name__
+        )
 
     def _generate_args(self):
         """Generate the dictionary of command-line arguments."""
         self.clearArgs()
+
 
 def _is_list_of_strings(lst):
     """Check whether the passed argument is a list of strings."""
@@ -1462,6 +1606,7 @@ def _is_list_of_strings(lst):
         return all(isinstance(elem, str) for elem in lst)
     else:
         return False
+
 
 def _odict_insert(dct, key, value, index):
     """Insert an item into an ordered dictionary."""
@@ -1473,7 +1618,7 @@ def _odict_insert(dct, key, value, index):
     n = len(dct)
 
     # Make sure the index is within range.
-    if index < 0 or index > n+1:
+    if index < 0 or index > n + 1:
         raise IndexError("Dictionary index out of range!")
 
     # Insert the new item at the end.

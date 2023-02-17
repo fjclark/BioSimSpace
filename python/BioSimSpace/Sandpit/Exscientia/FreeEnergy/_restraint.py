@@ -1,13 +1,13 @@
 ######################################################################
 # BioSimSpace: Making biomolecular simulation a breeze!
 #
-# Copyright: 2017-2022
+# Copyright: 2017-2023
 #
 # Authors: Lester Hedges <lester.hedges@gmail.com>
 #
 # BioSimSpace is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 2 of the License, or
+# the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
 # BioSimSpace is distributed in the hope that it will be useful,
@@ -46,7 +46,7 @@ from ..Units.Length import nanometer as _nanometer
 from ..Units.Temperature import kelvin as _kelvin
 
 class Restraint():
-    '''The Restraint class which holds the restraint information for the ABFE
+    """The Restraint class which holds the restraint information for the ABFE
     calculations. Currently only Boresch type restraint is supported.
 
     Boresch restraint is a set of harmonic restraints containing one bond, two
@@ -81,34 +81,36 @@ class Restraint():
                            "kphiA": BioSimSpace.Types.Energy / (BioSimSpace.Types.Area * BioSimSpace.Types.Area),
                            "kphiB": BioSimSpace.Types.Energy / (BioSimSpace.Types.Area * BioSimSpace.Types.Area),
                            "kphiC": BioSimSpace.Types.Energy / (BioSimSpace.Types.Area * BioSimSpace.Types.Area)}}
+    """
 
-    '''
-    def __init__(self, system, restraint_dict, temperature, rest_type='Boresch'):
-        """Constructor.
+    def __init__(self, system, restraint_dict, temperature, restraint_type="Boresch"):
+        """
+        Constructor.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           system : :class:`System <BioSimSpace._SireWrappers.System>`
-               The molecular system.
+        system : :class:`System <BioSimSpace._SireWrappers.System>`
+            The molecular system.
 
-           restraint_dict : dict
-               The dict for holding the restraint.
+        restraint_dict : dict
+            The dict for holding the restraint.
 
-           temperature : :class:`System <BioSimSpace.Types.Temperature>`
-               The temperature of the system
+        temperature : :class:`System <BioSimSpace.Types.Temperature>`
+            The temperature of the system
 
-           rest_type : str
-               The type of the restraint. (`Boresch`, )
+        restraint_type : str
+            The type of the restraint. (`Boresch`, )
         """
         if not isinstance(temperature, _Temperature):
             raise ValueError(
-                "temperature must be of type 'BioSimSpace.Types.Temperature'")
+                "temperature must be of type 'BioSimSpace.Types.Temperature'"
+            )
         else:
             self.T = temperature
 
-        if rest_type.lower() == 'boresch':
-            self._rest_type = 'boresch'
+        if restraint_type.lower() == "boresch":
+            self._restraint_type = "boresch"
             # Test if the atoms are of BioSimSpace._SireWrappers.Atom
             for key in ['r3', 'r2', 'r1', 'l1', 'l2', 'l3']:
                 if not isinstance(restraint_dict['anchor_points'][key], _Atom):
@@ -120,7 +122,8 @@ class Restraint():
             # Such as angstrom or nanometer
             if not isinstance(restraint_dict['equilibrium_values']['r0'], _Length):
                 raise ValueError(
-                    "restraint_dict['equilibrium_values']['r0'] must be of type 'BioSimSpace.Types.Length'")
+                    "restraint_dict['equilibrium_values']['r0'] must be of type 'BioSimSpace.Types.Length'"
+                )
 
             # Test if the equilibrium length of the angle and dihedral is a
             # angle unit such as radian or degree
@@ -128,20 +131,22 @@ class Restraint():
                 if not isinstance(restraint_dict['equilibrium_values'][key], _Angle):
                     raise ValueError(
                         f"restraint_dict['equilibrium_values']['{key}'] must be "
-                        f"of type 'BioSimSpace.Types.Angle'")
+                        f"of type 'BioSimSpace.Types.Angle'"
+                    )
 
             # Test if the force constant of the bond r1-l1 is the correct unit
             # Such as kcal/mol/angstrom^2
-            dim = restraint_dict['force_constants']['kr'].dimensions()
+            dim = restraint_dict["force_constants"]["kr"].dimensions()
             if dim != (0, 0, 0, 1, -1, 0, -2):
                 raise ValueError(
                     "restraint_dict['force_constants']['kr'] must be of type "
-                    "'BioSimSpace.Types.Energy'/'BioSimSpace.Types.Length^2'")
+                    "'BioSimSpace.Types.Energy'/'BioSimSpace.Types.Length^2'"
+                )
 
             # Test if the force constant of the angle and dihedral is the correct unit
             # Such as kcal/mol/rad^2
             for key in ["kthetaA", "kthetaB", "kphiA", "kphiB", "kphiC"]:
-                dim = restraint_dict['force_constants'][key].dimensions()
+                dim = restraint_dict["force_constants"][key].dimensions()
                 if dim != (-2, 0, 2, 1, -1, 0, -2):
                     raise ValueError(
                         f"restraint_dict['force_constants']['{key}'] must be of type "
@@ -181,8 +186,10 @@ class Restraint():
                           " values further from 0 or pi radians.")
 
         else:
-            raise NotImplementedError(f'Restraint type {type} not implemented '
-                                      f'yet. Only boresch restraint is supported.')
+            raise NotImplementedError(
+                f"Restraint type {type} not implemented "
+                f"yet. Only boresch restraint is supported."
+            )
 
         self._restraint_dict = restraint_dict
         self.system = system
@@ -193,49 +200,63 @@ class Restraint():
 
     @system.setter
     def system(self, system):
-        """Update the system object.
+        """
+        Update the system object.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           system : :class:`System <BioSimSpace._SireWrappers.System>`
-               The molecular system.
+        system : :class:`System <BioSimSpace._SireWrappers.System>`
+            The molecular system.
         """
         if not isinstance(system, _System):
-            raise TypeError("'system' must be of type 'BioSimSpace._SireWrappers.System'")
+            raise TypeError(
+                "'system' must be of type 'BioSimSpace._SireWrappers.System'"
+            )
         else:
-            if self._rest_type == 'boresch':
+            if self._restraint_type == "boresch":
                 # Check if the ligand atoms are decoupled.
                 # Find the decoupled molecule, assume that only one can be
                 # decoupled.
                 (decoupled_mol,) = system.getDecoupledMolecules()
-                for key in ['l1', 'l2', 'l3']:
-                    atom = self._restraint_dict['anchor_points'][key]
+                for key in ["l1", "l2", "l3"]:
+                    atom = self._restraint_dict["anchor_points"][key]
                     # Discussed in https://github.com/michellab/BioSimSpace/pull/337
-                    if atom._sire_object.molecule().number() != decoupled_mol._sire_object.number():
+                    if (
+                        atom._sire_object.molecule().number()
+                        != decoupled_mol._sire_object.number()
+                    ):
                         raise ValueError(
-                            f'The ligand atom {key} is not from decoupled moleucle.')
-                for key in ['r1', 'r2', 'r3']:
-                    atom = self._restraint_dict['anchor_points'][key]
+                            f"The ligand atom {key} is not from decoupled moleucle."
+                        )
+                for key in ["r1", "r2", "r3"]:
+                    atom = self._restraint_dict["anchor_points"][key]
                     if not atom in system:
                         raise ValueError(
-                            f'The protein atom {key} is not in the system.')
+                            f"The protein atom {key} is not in the system."
+                        )
 
             # Store a copy of solvated system.
             self._system = system.copy()
 
     def _gromacs_boresch(self):
-        '''Format the Gromacs string for boresch restraint.'''
+        """Format the Gromacs string for boresch restraint."""
+
         # Format the atoms into index list
         def format_index(key_list):
             formated_index = []
             for key in key_list:
-                formated_index.append('{:<10}'.format(
-                    self._system.getIndex(
-                        self._restraint_dict['anchor_points'][key]) + 1))
-            return ' '.join(formated_index)
+                formated_index.append(
+                    "{:<10}".format(
+                        self._system.getIndex(
+                            self._restraint_dict["anchor_points"][key]
+                        )
+                        + 1
+                    )
+                )
+            return " ".join(formated_index)
 
-        parameters_string = '{eq0:<10} {fc0:<10} {eq1:<10} {fc1:<10}'
+        parameters_string = "{eq0:<10} {fc0:<10} {eq1:<10} {fc1:<10}"
 
         # Format the parameters for the bonds
         def format_bond(equilibrium_values, force_constants):
@@ -246,10 +267,10 @@ class Restraint():
                 self._restraint_dict['force_constants'][force_constants] / (
                             _kj_per_mol / _nanometer ** 2)
             return parameters_string.format(
-                eq0='{:.3f}'.format(converted_equ_val),
-                fc0='{:.2f}'.format(0),
-                eq1='{:.3f}'.format(converted_equ_val),
-                fc1='{:.2f}'.format(converted_fc),
+                eq0="{:.3f}".format(converted_equ_val),
+                fc0="{:.2f}".format(0),
+                eq1="{:.3f}".format(converted_equ_val),
+                fc1="{:.2f}".format(converted_fc),
             )
 
         # Format the parameters for the angles and dihedrals
@@ -261,73 +282,67 @@ class Restraint():
                 self._restraint_dict['force_constants'][force_constants] / (
                             _kj_per_mol / (_radian * _radian))
             return parameters_string.format(
-                eq0='{:.3f}'.format(converted_equ_val),
-                fc0='{:.2f}'.format(0),
-                eq1='{:.3f}'.format(converted_equ_val),
-                fc1='{:.2f}'.format(converted_fc),
+                eq0="{:.3f}".format(converted_equ_val),
+                fc0="{:.2f}".format(0),
+                eq1="{:.3f}".format(converted_equ_val),
+                fc1="{:.2f}".format(converted_fc),
             )
 
         # basic format of the Gromacs string
-        master_string = '  {index} {func_type} {parameters}'
+        master_string = "  {index} {func_type} {parameters}"
 
         def write_bond(key_list, equilibrium_values, force_constants):
             return master_string.format(
                 index=format_index(key_list),
                 func_type=6,
-                parameters=format_bond(equilibrium_values,
-                                       force_constants),
+                parameters=format_bond(equilibrium_values, force_constants),
             )
 
         def write_angle(key_list, equilibrium_values, force_constants):
             return master_string.format(
                 index=format_index(key_list),
                 func_type=1,
-                parameters=format_angle(equilibrium_values,
-                                        force_constants),
+                parameters=format_angle(equilibrium_values, force_constants),
             )
 
         def write_dihedral(key_list, equilibrium_values, force_constants):
             return master_string.format(
                 index=format_index(key_list),
                 func_type=2,
-                parameters=format_angle(equilibrium_values,
-                                        force_constants),
+                parameters=format_angle(equilibrium_values, force_constants),
             )
 
         # Writing the string
-        output = ['[ intermolecular_interactions ]', ]
+        output = [
+            "[ intermolecular_interactions ]",
+        ]
 
-        output.append('[ bonds ]')
-        output.append(
-            '; ai         aj      type bA         kA         bB         kB')
+        output.append("[ bonds ]")
+        output.append("; ai         aj      type bA         kA         bB         kB")
         # Bonds: r1-l1 (r0, kr)
-        output.append(
-            write_bond(('r1', 'l1'), 'r0', 'kr'))
+        output.append(write_bond(("r1", "l1"), "r0", "kr"))
 
-        output.append('[ angles ]')
+        output.append("[ angles ]")
         output.append(
-            '; ai         aj         ak      type thA        fcA        thB        fcB')
+            "; ai         aj         ak      type thA        fcA        thB        fcB"
+        )
         # Angles: r2-r1-l1 (thetaA0, kthetaA)
-        output.append(
-            write_angle(('r2', 'r1', 'l1'), 'thetaA0', 'kthetaA'))
+        output.append(write_angle(("r2", "r1", "l1"), "thetaA0", "kthetaA"))
         # Angles: r1-l1-l2 (thetaB0, kthetaB)
-        output.append(
-            write_angle(('r1', 'l1', 'l2'), 'thetaB0', 'kthetaB'))
+        output.append(write_angle(("r1", "l1", "l2"), "thetaB0", "kthetaB"))
 
-        output.append('[ dihedrals ]')
+        output.append("[ dihedrals ]")
         output.append(
-            '; ai         aj         ak         al      type phiA       fcA        phiB       fcB')
+            "; ai         aj         ak         al      type phiA       fcA        phiB       fcB"
+        )
         # Dihedrals: r3-r2-r1-l1 (phiA0, kphiA)
-        output.append(
-            write_dihedral(('r3', 'r2', 'r1', 'l1'), 'phiA0', 'kphiA'))
+        output.append(write_dihedral(("r3", "r2", "r1", "l1"), "phiA0", "kphiA"))
         # Dihedrals: r2-r1-l1-l2 (phiB0, kphiB)
-        output.append(
-            write_dihedral(('r2', 'r1', 'l1', 'l2'), 'phiB0', 'kphiB'))
+        output.append(write_dihedral(("r2", "r1", "l1", "l2"), "phiB0", "kphiB"))
         # Dihedrals: r1-l1-l2-l3 (phiC0, kphiC)
-        output.append(
-            write_dihedral(('r1', 'l1', 'l2', 'l3'), 'phiC0', 'kphiC'))
+        output.append(write_dihedral(("r1", "l1", "l2", "l3"), "phiC0", "kphiC"))
 
-        return '\n'.join(output)
+        return "\n".join(output)
 
     def _somd_boresch(self):
         '''Format the SOMD string for the Boresch restraints.'''
@@ -368,17 +383,17 @@ class Restraint():
         """The method for convert the restraint to a format that could be used
         by MD Engines.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           engine : str
-               The molecular dynamics engine used to generate the restraint.
-               Available options currently is "GROMACS" and "SOMD". If this argument
-               is omitted then BioSimSpace will choose an appropriate engine
-               for you.
+        engine : str
+            The molecular dynamics engine used to generate the restraint.
+            Available options currently is "GROMACS" and "SOMD". If this argument
+            is omitted then BioSimSpace will choose an appropriate engine
+            for you.
         """
-        if engine.lower() == 'gromacs':
-            if self._rest_type == 'boresch':
+        if engine.strip().lower() == "gromacs":
+            if self._restraint_type == "boresch":
                 return self._gromacs_boresch()
         elif engine.lower() == 'somd':
             if self._rest_type == 'boresch':

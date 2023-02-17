@@ -1,13 +1,13 @@
 ######################################################################
 # BioSimSpace: Making biomolecular simulation a breeze!
 #
-# Copyright: 2017-2022
+# Copyright: 2017-2023
 #
 # Authors: Lester Hedges <lester.hedges@gmail.com>
 #
 # BioSimSpace is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 2 of the License, or
+# the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
 # BioSimSpace is distributed in the hope that it will be useful,
@@ -19,136 +19,168 @@
 # along with BioSimSpace. If not, see <http://www.gnu.org/licenses/>.
 #####################################################################
 
-"""
-Functionality for free energy protocols.
-"""
+"""Functionality for free energy protocols."""
 
 __author__ = "Lester Hedges"
 __email__ = "lester.hedges@gmail.com"
 
 __all__ = ["FreeEnergy"]
 
-import math as _math
-import warnings as _warnings
-
-from .. import Types as _Types
-
 from ._free_energy_mixin import _FreeEnergyMixin
 from ._production import Production as _Production
+from .. import Types as _Types
+from .. import Units as _Units
+
 
 class FreeEnergy(_Production, _FreeEnergyMixin):
     """A class for storing free energy production protocols."""
 
-    def __init__(self,
-                 lam=0.0,
-                 lam_vals=None,
-                 min_lam=0.0,
-                 max_lam=1.0,
-                 num_lam=11,
-                 timestep=_Types.Time(2, "femtosecond"),
-                 runtime=_Types.Time(4, "nanosecond"),
-                 temperature=_Types.Temperature(300, "kelvin"),
-                 pressure=_Types.Pressure(1, "atmosphere"),
-                 report_interval=200,
-                 restart_interval=1000,
-                 first_step=0,
-                 restart=False,
-                 perturbation_type="full"
-                ):
+    def __init__(
+        self,
+        lam=0.0,
+        lam_vals=None,
+        min_lam=0.0,
+        max_lam=1.0,
+        num_lam=11,
+        timestep=_Types.Time(2, "femtosecond"),
+        runtime=_Types.Time(4, "nanosecond"),
+        temperature=_Types.Temperature(300, "kelvin"),
+        pressure=_Types.Pressure(1, "atmosphere"),
+        tau_t=_Types.Time(1, "picosecond"),
+        report_interval=200,
+        restart_interval=1000,
+        first_step=0,
+        restart=False,
+        perturbation_type="full",
+        restraint=None,
+        force_constant=10 * _Units.Energy.kcal_per_mol / _Units.Area.angstrom2,
+    ):
         """Constructor.
 
-           Parameters
-           ----------
+        Parameters
+        ----------
 
-           lam : float or pandas.Series
-               The perturbation parameter: [0.0, 1.0]
+        lam : float
+            The perturbation parameter: [0.0, 1.0]
 
-           lam_vals : [float] or pandas.DataFrame
-               A list of lambda values.
+        lam_vals : [float]
+            The list of lambda parameters.
 
-           min_lam : float or pandas.Series
-               The minimum lambda value.
+        min_lam : float
+            The minimum lambda value.
 
-           max_lam : float or pandas.Series
-               The maximum lambda value.
+        max_lam : float
+            The maximum lambda value.
 
-           num_lam : int
-               The number of lambda values.
+        num_lam : int
+            The number of lambda values.
 
-           timestep : :class:`Time <BioSimSpace.Types.Time>`
-               The integration timestep.
+        timestep : :class:`Time <BioSimSpace.Types.Time>`
+            The integration timestep.
 
-           runtime : :class:`Time <BioSimSpace.Types.Time>`
-               The running time.
+        runtime : :class:`Time <BioSimSpace.Types.Time>`
+            The running time.
 
-           temperature : :class:`Temperature <BioSimSpace.Types.Temperature>`
-               The temperature.
+        temperature : :class:`Temperature <BioSimSpace.Types.Temperature>`
+            The temperature.
 
-           pressure : :class:`Pressure <BioSimSpace.Types.Pressure>`
-               The pressure. Pass pressure=None to use the NVT ensemble.
+        pressure : :class:`Pressure <BioSimSpace.Types.Pressure>`
+            The pressure. Pass pressure=None to use the NVT ensemble.
 
-           report_interval : int
-               The frequency at which statistics are recorded. (In integration steps.)
+        tau_t : :class:`Time <BioSimSpace.Types.Time>`
+            Time constant for thermostat coupling.
 
-           restart_interval : int
-               The frequency at which restart configurations and trajectory
+        report_interval : int
+            The frequency at which statistics are recorded. (In integration steps.)
 
-           first_step : int
-               The initial time step (for restart simulations).
+        restart_interval : int
+            The frequency at which restart configurations and trajectory
 
-           restart : bool
-               Whether this is a continuation of a previous simulation.
+        first_step : int
+            The initial time step (for restart simulations).
 
-           perturbation_type : str
-               The type of perturbation to perform. Options are:
-                "full" : A full perturbation of all terms (default option).
-                "discharge_soft" : Perturb all discharging soft atom charge terms (i.e. value->0.0).
-                "vanish_soft" : Perturb all vanishing soft atom LJ terms (i.e. value->0.0).
-                "flip" : Perturb all hard atom terms as well as bonds/angles.
-                "grow_soft" : Perturb all growing soft atom LJ terms (i.e. 0.0->value).
-                "charge_soft" : Perturb all charging soft atom LJ terms (i.e. 0.0->value).
-                "restraint" : Perturb the receptor-ligand restraint strength by linearly 
-                            scaling the force constants (0.0->value).
+        restart : bool
+            Whether this is a continuation of a previous simulation.
 
-                Currently perturubation_type != "full" is only supported by
-                BioSimSpace.Process.Somd.
+        perturbation_type : str
+            The type of perturbation to perform. Options are:
+            "full" : A full perturbation of all terms (default option).
+            "discharge_soft" : Perturb all discharging soft atom charge terms (i.e. value->0.0).
+            "vanish_soft" : Perturb all vanishing soft atom LJ terms (i.e. value->0.0).
+            "flip" : Perturb all hard atom terms as well as bonds/angles.
+            "grow_soft" : Perturb all growing soft atom LJ terms (i.e. 0.0->value).
+            "charge_soft" : Perturb all charging soft atom LJ terms (i.e. 0.0->value).
+            "restraint" : Perturb the receptor-ligand restraint strength by linearly 
+                        scaling the force constants (0.0->value).
+
+             Currently perturubation_type != "full" is only supported by
+             BioSimSpace.Process.Somd.
+
+        restraint : str, [int]
+            The type of restraint to perform. This should be one of the
+            following options:
+                "backbone"
+                     Protein backbone atoms. The matching is done by a name
+                     template, so is unreliable on conversion between
+                     molecular file formats.
+                "heavy"
+                     All non-hydrogen atoms that aren't part of water
+                     molecules or free ions.
+                "all"
+                     All atoms that aren't part of water molecules or free
+                     ions.
+            Alternatively, the user can pass a list of atom indices for
+            more fine-grained control. If None, then no restraints are used.
+
+        force_constant : :class:`GeneralUnit <BioSimSpace.Types._GeneralUnit>`, float
+            The force constant for the restraint potential. If a 'float' is
+            passed, then default units of 'kcal_per_mol / angstrom**2' will
+            be used.
         """
 
         # Call the base class constructors.
-        _Production.__init__(self,
-                            timestep=timestep,
-                            runtime=runtime,
-                            temperature=temperature,
-                            pressure=pressure,
-                            report_interval=report_interval,
-                            restart_interval=restart_interval,
-                            first_step=first_step,
-                            restart=restart)
+        _Production.__init__(
+            self,
+            timestep=timestep,
+            runtime=runtime,
+            temperature=temperature,
+            pressure=pressure,
+            tau_t=tau_t,
+            report_interval=report_interval,
+            restart_interval=restart_interval,
+            first_step=first_step,
+            restart=restart,
+            restraint=restraint,
+            force_constant=force_constant,
+        )
 
-        _FreeEnergyMixin.__init__(self,
-                                  lam=lam,
-                                  lam_vals=lam_vals,
-                                  min_lam=min_lam,
-                                  max_lam=max_lam,
-                                  num_lam=num_lam,
-                                  perturbation_type=perturbation_type)
+        _FreeEnergyMixin.__init__(
+            self,
+            lam=lam,
+            lam_vals=lam_vals,
+            min_lam=min_lam,
+            max_lam=max_lam,
+            num_lam=num_lam,
+            perturbation_type=perturbation_type,
+        )
+
+    def _get_parm(self):
+        """Return a string representation of the parameters."""
+
+        return ", ".join(
+            [_Production._get_parm(self), _FreeEnergyMixin._get_parm(self)]
+        )
 
     def __str__(self):
         """Return a human readable string representation of the object."""
         if self._is_customised:
             return "<BioSimSpace.Protocol.Custom>"
         else:
-            return ("<BioSimSpace.Protocol.FreeEnergy: lam=%5.4f, lam_vals=%r, timestep=%s, "
-                    "runtime=%s, temperature=%s, pressure=%s, report_interval=%d, restart_interval=%d>"
-                   ) % (self._lambda, self._lambda_vals, self._timestep, self._runtime,
-                        self._temperature, self._pressure, self._report_interval, self._restart_interval)
+            return f"<BioSimSpace.Protocol.FreeEnergy: {self._get_parm()}>"
 
     def __repr__(self):
         """Return a string showing how to instantiate the object."""
         if self._is_customised:
-            return "<BioSimSpace.Protocol.Custom>"
+            return "BioSimSpace.Protocol.Custom"
         else:
-            return ("BioSimSpace.Protocol.FreeEnergy(lam=%5.4f, lam_vals=%r, timestep=%s, "
-                    "runtime=%s, temperature=%s, pressure=%s, report_interval=%d, restart_interval=%d)"
-                   ) % (self._lambda, self._lambda_vals, self._timestep, self._runtime,
-                        self._temperature, self._pressure, self._report_interval, self._restart_interval)
+            return f"BioSimSpace.Protocol.FreeEnergy({self._get_parm()})"
