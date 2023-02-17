@@ -312,7 +312,7 @@ class TestSomdABFE():
                                 "kphiB":10 * kcal_per_mol / (radian * radian),
                                 "kphiC":10 * kcal_per_mol / (radian * radian)}}
 
-        restraint = Restraint(system, restraint_dict, 298 * kelvin, rest_type='Boresch')
+        restraint = Restraint(system, restraint_dict, 298 * kelvin, restraint_type='Boresch')
 
         return system, restraint
 
@@ -456,6 +456,6 @@ class TestSomdABFE():
                     "initial_LJ     3.48065 0.08688",
                     "final_LJ       0.00000 0.00000",
                     "initial_charge -0.13000",
-                    "final_charge   -0.00000"]
+                    "final_charge   0.00000"]
             for line in lines:
                 assert line in pert_text

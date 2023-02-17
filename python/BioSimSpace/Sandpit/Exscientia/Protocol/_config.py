@@ -1,6 +1,7 @@
 import math as _math
 import warnings as _warnings
 from sire.legacy import Units as _SireUnits
+from ..Units.Time import nanosecond as _nanosecond
 
 from .. import Protocol as _Protocol
 from .. import _gmx_version
@@ -656,7 +657,7 @@ class ConfigFactory:
                 ncycles = int(1)       
             else:
                 # calculate the number of cycles - rounds up to integer value
-                ncycles = _math.ceil((runtime)/(1*_nanosecond))
+                ncycles = _math.ceil((runtime)/(1 * _nanosecond))
 
             # number of moves should be so that nmoves * ncycles is equal to self._steps.
             nmoves = int(max(1, ((self._steps) // (ncycles))))

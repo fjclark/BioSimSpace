@@ -67,7 +67,9 @@ def test_free_energy(perturbable_system):
 
     # Create a short FEP protocol.
     protocol = BSS.Protocol.FreeEnergy(
-        runtime=0.1 * BSS.Units.Time.picosecond, report_interval=50, restart_interval=50
+        # Set longer runtime to avoid issues with extremely short SOMD runs. 200 ps
+        # takes ~ 20s with this system
+        runtime=200 * BSS.Units.Time.picosecond, report_interval=50, restart_interval=50
     )
 
     # Run the process and check that it finishes without error.
@@ -139,12 +141,12 @@ def test_pert_res_num(perturbable_system):
 def test_restraint(system, tmp_path):
     """Test if the restraint has been written in a way that can be processed
     correctly."""
-    ligand = ligand = BSS.IO.readMolecules(BSS.IO.glob("test/input/ligands/ligand01*")).getMolecule(0)
+    ligand = BSS.IO.readMolecules([f"{url}/ligand01.rst7", f"{url}/ligand01.prm7"]).getMolecule(0)
     decoupled_ligand = decouple(ligand)
     l1 = decoupled_ligand.getAtoms()[0]
     l2 = decoupled_ligand.getAtoms()[1]
     l3 = decoupled_ligand.getAtoms()[2]
-    ligand_2 = BSS.IO.readMolecules(BSS.IO.glob("test/input/ligands/ligand04*")).getMolecule(0)
+    ligand_2 = BSS.IO.readMolecules([f"{url}/ligand04.rst7", f"{url}/ligand04.prm7"]).getMolecule(0)
     r1 = ligand_2.getAtoms()[0]
     r2 = ligand_2.getAtoms()[1]
     r3 = ligand_2.getAtoms()[2]
@@ -165,7 +167,7 @@ def test_restraint(system, tmp_path):
                            "kphiA":10 * kcal_per_mol / (radian * radian),
                            "kphiB":10 * kcal_per_mol / (radian * radian),
                            "kphiC":10 * kcal_per_mol / (radian * radian)}}
-    restraint = Restraint(system, restraint_dict, 300 * kelvin, rest_type='Boresch')
+    restraint = Restraint(system, restraint_dict, 300 * kelvin, restraint_type='Boresch')
 
     # Create a short production protocol.
     protocol = BSS.Protocol.Production(runtime=BSS.Types.Time(0.0001, "nanoseconds"))
