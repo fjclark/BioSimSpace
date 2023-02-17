@@ -3,6 +3,7 @@ import warnings as _warnings
 from sire.legacy import Units as _SireUnits
 
 from .. import Protocol as _Protocol
+from .. import _gmx_version
 from ..Align._squash import _amber_mask_from_indices, _squashed_atom_mapping
 from .._Exceptions import IncompatibleError as _IncompatibleError
 
