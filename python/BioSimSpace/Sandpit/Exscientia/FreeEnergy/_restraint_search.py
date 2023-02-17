@@ -791,6 +791,10 @@ class RestraintSearch:
             The restraints of `restraint_type` which best mimic the strongest receptor-ligand
             interactions.
         """
+        print("Using MDRestraintsGenerator to generate Boresch restraints. If you publish " 
+              "any results using this method, please cite: 10.5281/zenodo.4570556 "
+              "and https://doi.org/10.1038/s42004-022-00721-4")
+
         ligand_atoms = _search.find_ligand_atoms(
             u, l_selection=ligand_selection_str, p_align=receptor_selection_str
         )
