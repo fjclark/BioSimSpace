@@ -101,6 +101,7 @@ if _have_imported(_MDRestraintsGenerator):
         FindBoreschRestraint as _FindBoreschRestraint,
     )
 
+is_MDRestraintsGenerator = _have_imported(_MDRestraintsGenerator)
 
 # Check that the analyse_freenrg script exists.
 if _sys.platform != "win32":
@@ -346,7 +347,7 @@ class RestraintSearch:
         """
         return self._work_dir
 
-    def _analyse(self, rest_type='Boresch',
+    def _analyse(self, restraint_type='Boresch',
                 method='MDRestraintsGenerator',
                 append_to_lig_selection="",
                 recept_selection_str='protein and name CA C N',
@@ -360,7 +361,7 @@ class RestraintSearch:
             Parameters
             ----------
 
-            rest_type: str
+            restraint_type: str
                 The type of restraints to select (currently only Boresch is available).
                 Default is 'Boresch'.
 
@@ -406,7 +407,7 @@ class RestraintSearch:
             -------
 
             restraint : :class:`Restraint <BioSimSpace.Sandpit.Exscientia.FreeEnergy.Restraint>`
-                The restraints of `rest_type` which best mimic the strongest receptor-ligand
+                The restraints of `restraint_type` which best mimic the strongest receptor-ligand
                 interactions.
             """
         # Wait for the process to finish.
@@ -418,7 +419,7 @@ class RestraintSearch:
         return RestraintSearch.analyse(self._work_dir, self._system,
                 self._process.getTrajectory(),
                 self._protocol.getTemperature(),
-                restraint_type=rest_type,
+                restraint_type=restraint_type,
                 method=method,
                 append_to_ligand_selection=append_to_lig_selection,
                 recept_selection_str=recept_selection_str,
@@ -612,6 +613,11 @@ class RestraintSearch:
         if not method.lower() in ['mdrestraintsgenerator', 'bss']:
             raise NotImplementedError("Deriving restraints using 'MDRestraintsGenerator'"
                                       "or 'BSS' are the only options implemented.")
+
+        if method.lower() == 'mdrestraintsgenerator':
+            if not is_MDRestraintsGenerator:
+                raise ValueError("Please install MDRestraintsGenerator to search for restraints with it. "
+                                 "Alternatively, use the 'BSS' method.")
                             
         if not isinstance(append_to_ligand_selection, str):
             raise TypeError(f"append_to_lig_selection {type(append_to_ligand_selection)} must be of type 'str'.")
@@ -782,7 +788,7 @@ class RestraintSearch:
         -------
  
         restraint : :class:`Restraint <BioSimSpace.Sandpit.Exscientia.FreeEnergy.Restraint>`
-            The restraints of `rest_type` which best mimic the strongest receptor-ligand
+            The restraints of `restraint_type` which best mimic the strongest receptor-ligand
             interactions.
         """
         ligand_atoms = _search.find_ligand_atoms(
@@ -953,7 +959,7 @@ class RestraintSearch:
         -------
 
         restraint : :class:`Restraint <BioSimSpace.Sandpit.Exscientia.FreeEnergy.Restraint>`
-            The restraints of `rest_type` which best mimic the strongest receptor-ligand
+            The restraints of `restraint_type` which best mimic the strongest receptor-ligand
             interactions.
         """
         
@@ -1154,7 +1160,7 @@ class RestraintSearch:
                 The configurational volume accessible to the restrained decoupled ligand,
                 in Angstrom^3.
             """
-            RT = _k_boltz * temp # in kcal / mol
+            RT = _k_boltz.value() * temp # in kcal / mol
             numerator1 = (equil_vals["r"] ** 2) * _np.sin(equil_vals["thetaA"]) * \
                             _np.sin(equil_vals["thetaB"]) # Units: A**2
             numerator2 = (2 * _np.pi * RT) **3 # Units: (kcal / mol )**3
@@ -1280,7 +1286,7 @@ class RestraintSearch:
 
                     # Assume Gaussian distributions and calculate force constants for harmonic potentials
                     # so as to reproduce these distributions at 298 K
-                    boresch_dof_data[pair][dof]["k"] = _k_boltz * temp / (
+                    boresch_dof_data[pair][dof]["k"] = _k_boltz.value() * temp / (
                                 boresch_dof_data[pair][dof][
                                     "var"])  # Force constants in kcal mol-1 A-2 [rad-2]
 
@@ -1308,7 +1314,7 @@ class RestraintSearch:
 
             # Filter out force restraints with with 10 kT of collinearity or r = 0
             # Convert 10 kT to angle
-            R = _k_boltz # molar gas constant in kcal mol-1 K-1
+            R = _k_boltz.value() # molar gas constant in kcal mol-1 K-1
             min_stable_dist = lambda k : _np.sqrt((20 * R * temp) / k) # Get the "distance" at which 
                                                                        # restraint penalty is 10 kT
             pairs_ordered_boresch = []

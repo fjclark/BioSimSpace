@@ -76,6 +76,7 @@ class Somd(_process.Process):
         extra_options=None,
         extra_lines=None,
         property_map={},
+        restraint=None,
     ):
         """
         Constructor.

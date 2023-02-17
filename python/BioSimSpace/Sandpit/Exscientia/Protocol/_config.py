@@ -755,9 +755,8 @@ class ConfigFactory:
 
             protocol = [str(x) for x in self.protocol.getLambdaValues()]
             protocol_dict["lambda array"] = ", ".join(protocol)
-            protocol_dict[
-                "lambda_val"
-            ] = self.protocol.getLambda()  # Current lambda value.
+            protocol_dict[ "lambda_val" ] = self.protocol.getLambda()  # Current lambda value.
+
             try:  # RBFE
                 res_num = (
                     self.system.search("perturbable")
@@ -765,16 +764,10 @@ class ConfigFactory:
                     ._sire_object.number()
                     .value()
                 )
-            except IndexError:  # No perturbable molecule - try ABFE
-                res_num = (
-                    self.system.search("is_decoupled")
-                    .residues()[0]
-                    ._sire_object.number()
-                    .value()
-                )
-            protocol_dict[
-                "perturbed residue number"
-            ] = res_num  # Perturbed residue number.
+            except ValueError:  # No perturbable molecule - try ABFE
+                res_num = self.system.getDecoupledMolecules()[0]._sire_object.number().value()
+
+            protocol_dict[ "perturbed residue number" ] = res_num  # Perturbed residue number.
 
 
         # Put everything together in a line-by-line format.

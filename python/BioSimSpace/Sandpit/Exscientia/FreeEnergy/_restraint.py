@@ -26,10 +26,10 @@ from scipy import integrate as _integrate
 import numpy as _np
 import warnings as _warnings
 
-from Sire.Units import angstrom3 as _Sire_angstrom3
-from Sire.Units import k_boltz as _k_boltz
-from Sire.Units import meter3 as _Sire_meter3
-from Sire.Units import mole as _Sire_mole
+from sire.legacy.Units import angstrom3 as _Sire_angstrom3
+from sire.legacy.Units import k_boltz as _k_boltz
+from sire.legacy.Units import meter3 as _Sire_meter3
+from sire.legacy.Units import mole as _Sire_mole
 
 from .._SireWrappers import Atom as _Atom
 from .._SireWrappers import System as _System
@@ -166,7 +166,7 @@ class Restraint():
                                       'will produce unstable Boresch restraints.')
 
             # Ensure angles are >= 10 kT from collinear
-            R = (_k_boltz * _kcal_per_mol / _kelvin).value() # molar gas constant in kcal mol-1 K-1
+            R = (_k_boltz.value() * _kcal_per_mol / _kelvin).value() # molar gas constant in kcal mol-1 K-1
             T = self.T / _kelvin # Temperature in Kelvin
 
             for angle in ["thetaA", "thetaB"]:
@@ -174,7 +174,7 @@ class Restraint():
                 equil_val = restraint_dict["equilibrium_values"][f"{angle}0"] / _radian
 
                 # Convert 10 kT to angle
-                R = (_k_boltz * _kcal_per_mol / _kelvin).value() # molar gas constant in kcal mol-1 K-1
+                R = (_k_boltz.value() * _kcal_per_mol / _kelvin).value() # molar gas constant in kcal mol-1 K-1
                 T = self.T / _kelvin # Temperature in Kelvin
                 min_stable_dist = _np.sqrt((20 * R * T) / force_const)
                 min_dist = min([abs(equil_val - 0), abs(equil_val - _np.pi)])
@@ -396,7 +396,7 @@ class Restraint():
             if self._restraint_type == "boresch":
                 return self._gromacs_boresch()
         elif engine.lower() == 'somd':
-            if self._rest_type == 'boresch':
+            if self._restraint_type == 'boresch':
                 return self._somd_boresch()
             else:
                 raise NotImplementedError(
@@ -429,11 +429,11 @@ class Restraint():
                in kcal / mol.
         """
 
-        if self._rest_type == 'boresch':
+        if self._restraint_type == 'boresch':
 
             # Constants. Take .value() to avoid issues with ** and log of GeneralUnit
             v0 = (((_Sire_meter3 / 1000 ) / _Sire_mole) / _Sire_angstrom3).value() # standard state volume in A^3
-            R = (_k_boltz * _kcal_per_mol / _kelvin).value() # molar gas constant in kcal mol-1 K-1
+            R = (_k_boltz.value() * _kcal_per_mol / _kelvin).value() # molar gas constant in kcal mol-1 K-1
             
             # Parameters
             T = self.T / _kelvin # Temperature in Kelvin

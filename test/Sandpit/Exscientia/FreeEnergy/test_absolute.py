@@ -4,10 +4,14 @@ try:
 except ModuleNotFoundError:
     is_alchemlyb = False
 
+from matplotlib import cm
 import numpy as np
+import os
 import pandas as pd
 import pathlib
 import pytest
+
+import time
 
 from BioSimSpace.Sandpit.Exscientia.Align._decouple import decouple
 from BioSimSpace.Sandpit.Exscientia.FreeEnergy import Restraint
@@ -23,12 +27,20 @@ import BioSimSpace.Sandpit.Exscientia as BSS
 # Make sure GROMSCS is installed.
 has_gromacs = BSS._gmx_exe is not None
 
+# Get the input files
+url = BSS.tutorialUrl()
+print(url)
+
 @pytest.mark.skipif(has_gromacs is False, reason="Requires GROMACS to be installed.")
 class Test_gmx_ABFE():
     @staticmethod
     @pytest.fixture(scope='class')
     def freenrg():
-        m = BSS.IO.readMolecules("test/input/amber/ala/*").getMolecule(0)
+        m = BSS.IO.readMolecules(
+                [f"{url}/crd.gro.bz2",
+                f"{url}/complex.top.bz2",]
+        ).getMolecule(1) # Molecule 1 is the ligand
+
         # Assign atoms for restraint
         atom_1 = m.getAtoms()[0]
         atom_2 = m.getAtoms()[1]
@@ -58,7 +70,7 @@ class Test_gmx_ABFE():
                                 "kphiB":10 * kcal_per_mol / (radian * radian),
                                 "kphiC":10 * kcal_per_mol / (radian * radian)}}
 
-        restraint = Restraint(solvated, restraint_dict, 298 * kelvin, rest_type='Boresch')
+        restraint = Restraint(solvated, restraint_dict, 298 * kelvin, restraint_type='Boresch')
         protocol = FreeEnergyEquilibration(
             lam=pd.Series(data={'coul': 0.5, 'vdw': 0.0}),
             lam_vals=pd.DataFrame(
@@ -92,7 +104,11 @@ class Test_Somd_ABFE():
     @staticmethod
     @pytest.fixture(scope='class')
     def freenrg():
-        m = BSS.IO.readMolecules("test/input/amber/ala/*").getMolecule(0)
+        # Just use a single ligand with anchors based all on atoms in the ligand, for simplicity
+        m = BSS.IO.readMolecules(
+            [f"{url}/ligand01.prm7.bz2",
+             f"{url}/ligand01.rst7.bz2"]
+        ).getMolecule(0) 
 
         # Assign atoms for restraint
         atom_1 = m.getAtoms()[0]
@@ -123,7 +139,7 @@ class Test_Somd_ABFE():
                                 "kphiB":10 * kcal_per_mol / (radian * radian),
                                 "kphiC":10 * kcal_per_mol / (radian * radian)}}
 
-        restraint = Restraint(solvated, restraint_dict, 298 * kelvin, rest_type='Boresch')
+        restraint = Restraint(solvated, restraint_dict, 298 * kelvin, restraint_type='Boresch')
         protocol = BSS.Protocol.FreeEnergy(lam_vals = [0.0, 0.5, 1.0],
                               runtime=0.0001*BSS.Units.Time.nanosecond)
         freenrg = BSS.FreeEnergy.Absolute(solvated, protocol,
@@ -131,21 +147,31 @@ class Test_Somd_ABFE():
 
         freenrg.run()
         freenrg.wait()
+        # Sleep to allow files to be written
+        time.sleep(15)
         return freenrg
 
-    @pytest.mark.xfail(reason="freenrg.wait() doesn't work for SOMD, so files aren't created in time.")
+    #@pytest.mark.xfail(reason="freenrg.wait() doesn't work for SOMD, so files aren't created in time.")
     def test_files_exist(self, freenrg):
-        '''Test if all the files have been created.'''
+        '''Test if the files have been created. Note that e.g. gradients.dat
+        are not created until later in the simulation, so their presence is 
+        not tested for.'''
         path = pathlib.Path(freenrg._work_dir)
-        for i in range(3):
-            assert (path / f'lambda_{i}' / 'simfile.dat').is_file()
-            assert (path / f'lambda_{i}' / 'sim_restart.s3').is_file()
-            assert (path / f'lambda_{i}' / 'traj000000001.dcd').is_file()
-            assert (path / f'lambda_{i}' / 'gradients.dat').is_file()
+        for lam in ["0.0000", "0.5000", "1.0000"]:
+            assert (path / f'lambda_{lam}' / 'simfile.dat').is_file()
+            assert (path / f'lambda_{lam}' / 'SYSTEM.s3').is_file()
+            assert (path / f'lambda_{lam}' / 'somd.cfg').is_file()
+            assert (path / f'lambda_{lam}' / 'somd.rst7').is_file()
+            assert (path / f'lambda_{lam}' / 'somd.prm7').is_file()
+            assert (path / f'lambda_{lam}' / 'somd.err').is_file()
+            assert (path / f'lambda_{lam}' / 'somd.out').is_file()
 
-    @pytest.mark.xfail(reason="freenrg.wait() doesn't work for SOMD, so files aren't created in time.")
-    def test_correct_simfile(self, freenrg):
-        '''Check if correct numbers of entries in simfile.dat'''
+    #@pytest.mark.xfail(reason="freenrg.wait() doesn't work for SOMD, so files aren't created in time.")
+    def test_correct_conf_file(self, freenrg):
+        '''Check that lambda data is correct in somd.cfg'''
         path = pathlib.Path(freenrg._work_dir)
-        with open(path / 'lambda_0' / 'simfile.dat', 'rt') as f:
-            assert "#Alchemical array is		 (0.0, 0.5, 1.0)" in f.read()
+        for lam in ["0.0000", "0.5000", "1.0000"]:
+            with open(os.path.join(path, f"lambda_{lam}", 'somd.cfg'), 'rt') as f:
+                lines = f.readlines()
+                assert "lambda array = 0.0, 0.5, 1.0\n" in lines
+                assert f"lambda_val = {float(lam):.1f}\n" in lines

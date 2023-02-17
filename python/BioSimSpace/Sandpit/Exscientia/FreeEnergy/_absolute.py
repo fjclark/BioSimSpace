@@ -29,8 +29,8 @@ __all__ = ["Absolute", "getData"]
 import os as _os
 import sys as _sys
 
-from Sire.Base import getBinDir as _getBinDir
-from Sire.Base import getShareDir as _getShareDir
+from sire.legacy.Base import getBinDir as _getBinDir
+from sire.legacy.Base import getShareDir as _getShareDir
 
 from .._Exceptions import MissingSoftwareError as _MissingSoftwareError
 from ._restraint import Restraint as _Restraint

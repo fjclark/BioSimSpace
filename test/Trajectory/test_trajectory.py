@@ -1,7 +1,7 @@
 import BioSimSpace as BSS
 
 try:
-    from Sire.Base import wrap
+    from sire.legacy.Base import wrap
 except Exception:
 
     def wrap(arg):
