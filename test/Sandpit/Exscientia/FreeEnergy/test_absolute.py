@@ -148,7 +148,7 @@ class Test_Somd_ABFE():
         freenrg.run()
         freenrg.wait()
         # Sleep to allow files to be written
-        time.sleep(15)
+        time.sleep(25)
         return freenrg
 
     #@pytest.mark.xfail(reason="freenrg.wait() doesn't work for SOMD, so files aren't created in time.")
