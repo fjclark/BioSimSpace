@@ -1,6 +1,7 @@
-import BioSimSpace.Sandpit.Exscientia as BSS
 import pandas as pd
 import pytest
+
+import BioSimSpace.Sandpit.Exscientia as BSS
 from BioSimSpace.Sandpit.Exscientia.Align._decouple import decouple
 from BioSimSpace.Sandpit.Exscientia.Protocol import (
     ConfigFactory,
@@ -30,6 +31,20 @@ has_openff = _have_imported(_openff)
 
 # Store the tutorial URL.
 url = BSS.tutorialUrl()
+
+
+class TestAmber:
+    @pytest.fixture(scope="class")
+    def system(self):
+        m0 = BSS.IO.readMolecules(
+            [f"{url}/CAT-13c.prm7.bz2", f"{url}/CAT-13c.rst7.bz2"]
+        ).getMolecule(0)
+        return m0.toSystem()
+
+    def test_NVT(self, system):
+        config = ConfigFactory(system, Equilibration(pressure=None))
+        res = [x.strip().strip(",") for x in config.generateAmberConfig()]
+        assert "ntb=1" in res
 
 
 class TestAmberRBFE:
@@ -459,3 +474,25 @@ class TestSomdABFE():
                     "final_charge   0.00000"]
             for line in lines:
                 assert line in pert_text
+class TestAmberASFE:
+    @staticmethod
+    @pytest.fixture(scope="class")
+    def system():
+        mol = BSS.IO.readMolecules(
+            [f"{url}/CAT-13c.prm7.bz2", f"{url}/CAT-13c.rst7.bz2"]
+        ).getMolecule(0)
+        mol = decouple(mol)
+        return mol.toSystem()
+
+    def test_generate_fep_masks(self, system):
+        config = ConfigFactory(system, FreeEnergyMinimisation())
+        res = config._generate_amber_fep_masks(0.002)
+        expected_res = {
+            "noshakemask": '"@1-45"',
+            "scmask1": '"@1-45"',
+            "scmask2": '""',
+            "timask1": '"@1-45"',
+            "timask2": '""',
+        }
+        for key in expected_res:
+            assert expected_res[key] == res[key]
