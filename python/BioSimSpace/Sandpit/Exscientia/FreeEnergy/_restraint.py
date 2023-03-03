@@ -400,7 +400,7 @@ class Restraint():
                 return self._somd_boresch()
             else:
                 raise NotImplementedError(
-                    f'Restraint type {self.rest_type} not implemented '
+                    f'Restraint type {self._restraint_type} not implemented '
                     f'yet. Only Boresch restraints are supported.')
         else:
             raise NotImplementedError(f'MD Engine {engine} not implemented '
