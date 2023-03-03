@@ -669,9 +669,6 @@ class RestraintSearch:
                            cutoff, restraint_idx=0):
         """Generate the Boresch Restraint.
 
-           Parameters
-           ----------
-
         Parameters
         ----------
 
