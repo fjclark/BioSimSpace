@@ -395,7 +395,7 @@ class Restraint():
         if engine.strip().lower() == "gromacs":
             if self._restraint_type == "boresch":
                 return self._gromacs_boresch()
-        elif engine.lower() == 'somd':
+        elif engine.strip().lower() == 'somd':
             if self._restraint_type == 'boresch':
                 return self._somd_boresch()
             else:
